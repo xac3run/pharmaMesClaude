@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Нобилис.Тех MES</title>
+  <title>Nobilis.Tech MES</title>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -13,267 +13,296 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect } = React;
+    const { useState } = React;
 
-    const PharmaceuticalMES = () => {
-      const [activeTab, setActiveTab] = useState("dashboard");
-      const [currentTime, setCurrentTime] = useState(new Date());
-      const [isLoading, setIsLoading] = useState(true);
+    // ----------------------------
+    // Components
+    // ----------------------------
+    const NavButton = ({ tab, activeTab, setActiveTab, icon, label }) => (
+      <button
+        onClick={() => setActiveTab(tab)}
+        className={`px-6 py-3 font-medium border-b-2 transition-colors ${
+          activeTab === tab
+            ? "border-blue-500 text-blue-600"
+            : "border-transparent text-gray-500 hover:text-gray-700"
+        }`}
+      >
+        {icon} {label}
+      </button>
+    );
 
-      // === Demo Data ===
-      const [batches, setBatches] = useState([
-        { id: "BR-2024-001", product: "Aspirin 325mg Tablets", status: "in_progress", progress: 65 },
-        { id: "BR-2024-002", product: "Paracetamol 500mg Tablets", status: "completed", progress: 100 },
-        { id: "BR-2024-003", product: "Ibuprofen 200mg Capsules", status: "deviation", progress: 45, deviation: "Temp exceeded" }
-      ]);
-
-      const [templates, setTemplates] = useState([
-        { id: 1, name: "Aspirin 325mg - Tableting", productId: "PRD-001", version: "1.2", status: "approved", author: "QA1", createdAt: "2024-09-01", processType: "Таблетирование", steps: [], params: [], materials: [], attachments: [], history: [] }
-      ]);
-
-      const [modalOpen, setModalOpen] = useState(false);
-      const [editingTemplate, setEditingTemplate] = useState(null);
-      const [configTab, setConfigTab] = useState("meta");
-
-      useEffect(() => {
-        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-        setTimeout(() => setIsLoading(false), 1200);
-        return () => clearInterval(timer);
-      }, []);
-
-      // === Batches logic ===
-      const completeStep = (id) => {
-        setBatches(prev => prev.map(b => b.id===id ? {...b, progress:Math.min(b.progress+20,100), status:b.progress+20>=100?"completed":"in_progress"}:b));
+    const StepRow = ({ step, onUpdate, onRemove, onAddMaterial }) => {
+      const handleChange = (field, value) => {
+        onUpdate({ ...step, [field]: value });
       };
-      const reportDeviation = (id) => {
-        setBatches(prev => prev.map(b => b.id===id ? {...b, status:"deviation", deviation:"Manual deviation"}:b));
-      };
-      const approveDeviation = (id) => {
-        setBatches(prev => prev.map(b => b.id===id ? {...b, status:"in_progress", deviation:null}:b));
-      };
-
-      // === Templates logic ===
-      const createTemplate = () => {
-        const newT = {
-          id: templates.length+1,
-          name: `New Template ${templates.length+1}`,
-          productId: `PRD-${100+templates.length}`,
-          version: "0.1",
-          status: "draft",
-          author: "QA",
-          createdAt: new Date().toISOString().split("T")[0],
-          processType: "",
-          steps: [],
-          params: [],
-          materials: [],
-          attachments: [],
-          history: []
-        };
-        setTemplates([...templates,newT]);
-      };
-      const configureTemplate = (t) => {
-        setEditingTemplate({...t});
-        setConfigTab("meta");
-        setModalOpen(true);
-      };
-      const saveTemplate = () => {
-        setTemplates(prev=>prev.map(t=>t.id===editingTemplate.id?editingTemplate:t));
-        setModalOpen(false);
-      };
-
-      const addStep = () => {
-        setEditingTemplate({...editingTemplate, steps:[...editingTemplate.steps,{id:Date.now(), type:"instruction", name:"Новый шаг"}]});
-      };
-      const addParam = () => {
-        setEditingTemplate({...editingTemplate, params:[...editingTemplate.params,{id:Date.now(), name:"Temp", min:20, max:25}]});
-      };
-      const addMaterial = () => {
-        setEditingTemplate({...editingTemplate, materials:[...editingTemplate.materials,{id:Date.now(), name:"Lactose", qty:"10kg"}]});
-      };
-      const addAttachment = () => {
-        setEditingTemplate({...editingTemplate, attachments:[...editingTemplate.attachments,{id:Date.now(), type:"PDF", name:"SOP-123"}]});
-      };
-      const approveTemplate = () => {
-        setEditingTemplate({...editingTemplate, status:"approved"});
-      };
-
-      if(isLoading) return <div className="flex h-screen items-center justify-center">Loading...</div>;
 
       return (
-        <div className="p-6 max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="flex justify-between mb-6">
-            <div className="flex items-center">
-              <img src="assets/logo.svg" className="h-12 w-12 mr-4"/>
-              <div>
-                <h1 className="text-2xl font-bold">Нобилис.Тех MES</h1>
-                <p className="text-gray-600">Pharmaceutical eBR Platform</p>
+        <div className="border p-4 rounded-lg mb-2 bg-gray-50">
+          <div className="flex items-center mb-2 gap-2">
+            <input
+              type="text"
+              value={step.name}
+              onChange={(e) => handleChange("name", e.target.value)}
+              className="flex-1 border p-2 rounded text-sm"
+              placeholder="Step name"
+            />
+            <select
+              value={step.type}
+              onChange={(e) => handleChange("type", e.target.value)}
+              className="border p-2 rounded text-sm"
+            >
+              <option>Instruction</option>
+              <option>Data Entry</option>
+              <option>Control</option>
+              <option>CCP</option>
+              <option>Pause</option>
+            </select>
+            <button
+              onClick={onRemove}
+              className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+            >
+              ✖
+            </button>
+          </div>
+          {/* Parameters */}
+          <div className="flex gap-2 mb-2">
+            <input
+              type="number"
+              value={step.min || ""}
+              onChange={(e) => handleChange("min", e.target.value)}
+              className="border p-2 rounded text-sm w-24"
+              placeholder="Min"
+            />
+            <input
+              type="number"
+              value={step.max || ""}
+              onChange={(e) => handleChange("max", e.target.value)}
+              className="border p-2 rounded text-sm w-24"
+              placeholder="Max"
+            />
+          </div>
+          {/* Materials */}
+          <div>
+            <h4 className="font-medium text-sm mb-1">Materials</h4>
+            {step.materials.map((m, i) => (
+              <div key={i} className="flex gap-2 mb-1">
+                <input
+                  type="text"
+                  value={m.id}
+                  onChange={(e) => {
+                    const newM = [...step.materials];
+                    newM[i].id = e.target.value;
+                    handleChange("materials", newM);
+                  }}
+                  className="border p-2 rounded text-sm flex-1"
+                  placeholder="Material ID"
+                />
+                <select
+                  value={m.status}
+                  onChange={(e) => {
+                    const newM = [...step.materials];
+                    newM[i].status = e.target.value;
+                    handleChange("materials", newM);
+                  }}
+                  className="border p-2 rounded text-sm"
+                >
+                  <option>valid</option>
+                  <option>quarantine</option>
+                  <option>blocked</option>
+                </select>
               </div>
+            ))}
+            <button
+              onClick={onAddMaterial}
+              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+            >
+              ➕ Add Material
+            </button>
+          </div>
+        </div>
+      );
+    };
+
+    // ----------------------------
+    // Main App
+    // ----------------------------
+    const App = () => {
+      const [activeTab, setActiveTab] = useState("dashboard");
+      const [templates, setTemplates] = useState([
+        {
+          id: 1,
+          name: "Aspirin 325mg - Tableting",
+          steps: [
+            { name: "Weighing", type: "Data Entry", min: 100, max: 110, materials: [] },
+          ],
+        },
+      ]);
+      const [auditLog, setAuditLog] = useState([]);
+
+      const logAction = (msg) => {
+        setAuditLog((prev) => [
+          { ts: new Date().toLocaleString(), msg },
+          ...prev,
+        ]);
+      };
+
+      const addStep = (templateId) => {
+        setTemplates((prev) =>
+          prev.map((t) =>
+            t.id === templateId
+              ? {
+                  ...t,
+                  steps: [...t.steps, { name: "New Step", type: "Instruction", materials: [] }],
+                }
+              : t
+          )
+        );
+        logAction(`➕ Added step to template ${templateId}`);
+      };
+
+      const updateStep = (templateId, index, newStep) => {
+        setTemplates((prev) =>
+          prev.map((t) =>
+            t.id === templateId
+              ? { ...t, steps: t.steps.map((s, i) => (i === index ? newStep : s)) }
+              : t
+          )
+        );
+        logAction(`✏️ Updated step #${index + 1} in template ${templateId}`);
+      };
+
+      const removeStep = (templateId, index) => {
+        setTemplates((prev) =>
+          prev.map((t) =>
+            t.id === templateId
+              ? { ...t, steps: t.steps.filter((_, i) => i !== index) }
+              : t
+          )
+        );
+        logAction(`❌ Removed step #${index + 1} from template ${templateId}`);
+      };
+
+      const addMaterial = (templateId, stepIndex) => {
+        setTemplates((prev) =>
+          prev.map((t) =>
+            t.id === templateId
+              ? {
+                  ...t,
+                  steps: t.steps.map((s, i) =>
+                    i === stepIndex
+                      ? { ...s, materials: [...s.materials, { id: "", status: "valid" }] }
+                      : s
+                  ),
+                }
+              : t
+          )
+        );
+        logAction(`📦 Added material to step #${stepIndex + 1} in template ${templateId}`);
+      };
+
+      return (
+        <div className="max-w-7xl mx-auto p-6">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <img src="assets/logo.svg" className="h-12 w-12" />
+              <h1 className="text-3xl font-bold">🏭 Nobilis.Tech MES</h1>
             </div>
-            <div className="text-sm text-gray-500">{currentTime.toLocaleString()}</div>
+            <span className="text-green-600 font-medium">✅ Online</span>
           </div>
 
-          {/* Tabs */}
-          <div className="mb-4 flex gap-6 border-b pb-2">
-            <button onClick={()=>setActiveTab("dashboard")}>📊 Dashboard</button>
-            <button onClick={()=>setActiveTab("batches")}>🧪 Batches</button>
-            <button onClick={()=>setActiveTab("templates")}>📋 eBR Templates</button>
+          {/* Navigation */}
+          <div className="flex mb-6 border-b">
+            <NavButton tab="dashboard" activeTab={activeTab} setActiveTab={setActiveTab} icon="📊" label="Dashboard" />
+            <NavButton tab="batches" activeTab={activeTab} setActiveTab={setActiveTab} icon="🧪" label="Batches" />
+            <NavButton tab="templates" activeTab={activeTab} setActiveTab={setActiveTab} icon="📋" label="eBR Templates" />
+            <NavButton tab="workflow" activeTab={activeTab} setActiveTab={setActiveTab} icon="🔄" label="Workflow" />
+            <NavButton tab="audit" activeTab={activeTab} setActiveTab={setActiveTab} icon="📜" label="Audit Trail" />
           </div>
 
           {/* Dashboard */}
-          {activeTab==="dashboard" && (
-            <div>
-              <h2 className="text-xl font-bold mb-4">📊 Production KPIs</h2>
-              <p>Active Batches: {batches.filter(b=>b.status!=="completed").length}</p>
-              <p>Completed: {batches.filter(b=>b.status==="completed").length}</p>
-              <p>Deviations: {batches.filter(b=>b.status==="deviation").length}</p>
-              <p>Templates: {templates.length}</p>
+          {activeTab === "dashboard" && (
+            <div className="bg-white p-6 rounded-lg shadow-sm border">
+              <h2 className="text-lg font-semibold">📊 Dashboard</h2>
+              <p className="text-sm text-gray-600 mt-2">Показывает KPI, активные партии и отклонения.</p>
             </div>
           )}
 
           {/* Batches */}
-          {activeTab==="batches" && (
-            <div>
-              <h2 className="text-xl font-bold mb-4">🧪 Batches</h2>
-              {batches.map(b=>(
-                <div key={b.id} className="border p-3 mb-2 rounded flex justify-between">
-                  <div>
-                    <p className="font-semibold">{b.id} — {b.product}</p>
-                    <p className="text-sm">Progress: {b.progress}%</p>
-                    {b.deviation && <p className="text-red-600">Deviation: {b.deviation}</p>}
-                  </div>
-                  <div className="flex gap-2">
-                    {b.status==="in_progress" && (
-                      <>
-                        <button onClick={()=>completeStep(b.id)} className="px-2 py-1 bg-green-600 text-white">Complete</button>
-                        <button onClick={()=>reportDeviation(b.id)} className="px-2 py-1 bg-red-600 text-white">Deviation</button>
-                      </>
-                    )}
-                    {b.status==="deviation" && (
-                      <button onClick={()=>approveDeviation(b.id)} className="px-2 py-1 bg-blue-600 text-white">Approve</button>
-                    )}
-                  </div>
-                </div>
-              ))}
+          {activeTab === "batches" && (
+            <div className="bg-white p-6 rounded-lg shadow-sm border">
+              <h2 className="text-lg font-semibold">🧪 Batch Records</h2>
+              <p className="text-sm text-gray-600 mt-2">Список партий, статусы и прогресс выполнения.</p>
             </div>
           )}
 
           {/* Templates */}
-          {activeTab==="templates" && (
-            <div>
-              <div className="flex justify-between mb-4">
-                <h2 className="text-xl font-bold">📋 eBR Templates</h2>
-                <button onClick={createTemplate} className="px-3 py-1 bg-green-600 text-white">➕ New</button>
-              </div>
-              {templates.map(t=>(
-                <div key={t.id} className="border p-3 mb-2 rounded flex justify-between">
-                  <div>
-                    <p className="font-semibold">{t.name}</p>
-                    <p className="text-sm">v{t.version} • {t.status} • {t.processType||"—"}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={()=>configureTemplate(t)} className="px-2 py-1 bg-blue-600 text-white">⚙️ Configure</button>
-                    {t.status==="approved" && (
-                      <button className="px-2 py-1 bg-green-600 text-white">▶️ Start Batch</button>
-                    )}
-                  </div>
+          {activeTab === "templates" && (
+            <div className="space-y-6">
+              {templates.map((t) => (
+                <div key={t.id} className="bg-white p-6 rounded-lg shadow-sm border">
+                  <h3 className="text-lg font-semibold mb-4">{t.name}</h3>
+                  {t.steps.map((s, i) => (
+                    <StepRow
+                      key={i}
+                      step={s}
+                      onUpdate={(ns) => updateStep(t.id, i, ns)}
+                      onRemove={() => removeStep(t.id, i)}
+                      onAddMaterial={() => addMaterial(t.id, i)}
+                    />
+                  ))}
+                  <button
+                    onClick={() => addStep(t.id)}
+                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                  >
+                    ➕ Add Step
+                  </button>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Modal Configurator */}
-          {modalOpen && editingTemplate && (
-            <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-              <div className="bg-white p-6 rounded w-[700px] max-h-[90vh] overflow-y-auto">
-                <h3 className="text-lg font-bold mb-4">⚙️ Configure Template: {editingTemplate.name}</h3>
-
-                {/* Tabs inside modal */}
-                <div className="flex gap-3 border-b mb-4 pb-2">
-                  <button onClick={()=>setConfigTab("meta")}>Основное</button>
-                  <button onClick={()=>setConfigTab("steps")}>Шаги</button>
-                  <button onClick={()=>setConfigTab("params")}>Параметры</button>
-                  <button onClick={()=>setConfigTab("materials")}>Материалы</button>
-                  <button onClick={()=>setConfigTab("attachments")}>Вложения</button>
-                  <button onClick={()=>setConfigTab("audit")}>Аудит</button>
-                  <button onClick={()=>setConfigTab("approval")}>Утверждение</button>
-                </div>
-
-                {configTab==="meta" && (
-                  <div>
-                    <label className="block">Название</label>
-                    <input value={editingTemplate.name} onChange={e=>setEditingTemplate({...editingTemplate,name:e.target.value})} className="border p-1 w-full mb-2"/>
-                    <label className="block">Тип процесса</label>
-                    <select value={editingTemplate.processType} onChange={e=>setEditingTemplate({...editingTemplate,processType:e.target.value})} className="border p-1 w-full mb-2">
-                      <option value="">—</option>
-                      <option>Таблетирование</option>
-                      <option>Фасовка</option>
-                      <option>Стерилизация</option>
-                    </select>
-                    <p>ID продукта: {editingTemplate.productId}</p>
-                    <p>Автор: {editingTemplate.author}</p>
-                    <p>Дата: {editingTemplate.createdAt}</p>
-                    <p>Статус: {editingTemplate.status}</p>
-                  </div>
-                )}
-
-                {configTab==="steps" && (
-                  <div>
-                    <button onClick={addStep} className="mb-2 px-2 py-1 bg-green-600 text-white">+ Шаг</button>
-                    {editingTemplate.steps.map(s=><p key={s.id}>• {s.name} ({s.type})</p>)}
-                  </div>
-                )}
-
-                {configTab==="params" && (
-                  <div>
-                    <button onClick={addParam} className="mb-2 px-2 py-1 bg-green-600 text-white">+ Параметр</button>
-                    {editingTemplate.params.map(p=><p key={p.id}>{p.name}: {p.min}–{p.max}</p>)}
-                  </div>
-                )}
-
-                {configTab==="materials" && (
-                  <div>
-                    <button onClick={addMaterial} className="mb-2 px-2 py-1 bg-green-600 text-white">+ Материал</button>
-                    {editingTemplate.materials.map(m=><p key={m.id}>{m.name} ({m.qty})</p>)}
-                  </div>
-                )}
-
-                {configTab==="attachments" && (
-                  <div>
-                    <button onClick={addAttachment} className="mb-2 px-2 py-1 bg-green-600 text-white">+ Вложение</button>
-                    {editingTemplate.attachments.map(a=><p key={a.id}>{a.type}: {a.name}</p>)}
-                  </div>
-                )}
-
-                {configTab==="audit" && (
-                  <div>
-                    <p>История версий:</p>
-                    {editingTemplate.history.length===0 && <p>— пусто —</p>}
-                  </div>
-                )}
-
-                {configTab==="approval" && (
-                  <div>
-                    <p>Текущий статус: {editingTemplate.status}</p>
-                    {editingTemplate.status!=="approved" && (
-                      <button onClick={approveTemplate} className="mt-2 px-3 py-1 bg-blue-600 text-white">✅ Approve</button>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex justify-end gap-2 mt-6">
-                  <button onClick={()=>setModalOpen(false)} className="px-4 py-2 bg-gray-300">Cancel</button>
-                  <button onClick={saveTemplate} className="px-4 py-2 bg-green-600 text-white">Save</button>
-                </div>
+          {/* Workflow */}
+          {activeTab === "workflow" && (
+            <div className="space-y-6">
+              <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+                <h3 className="font-semibold text-blue-800 mb-2">🎯 Workflow Goals</h3>
+                <ul className="list-disc list-inside text-sm text-blue-700 space-y-1">
+                  <li>Пошаговое выполнение процесса по MBR</li>
+                  <li>Фиксация и контроль данных в реальном времени</li>
+                  <li>Соответствие GMP, 21 CFR Part 11, Annex 11, GAMP5</li>
+                  <li>Электронные подписи, аудит-трейл, контроль отклонений</li>
+                </ul>
               </div>
+              <div className="bg-white p-6 rounded-lg shadow-sm border">
+                <h3 className="text-lg font-semibold mb-4">📖 User Stories</h3>
+                <p className="text-sm text-gray-600">WF-01…WF-06 (оператор, QA, мастер, аудитор).</p>
+              </div>
+            </div>
+          )}
+
+          {/* Audit Trail */}
+          {activeTab === "audit" && (
+            <div className="bg-white p-6 rounded-lg shadow-sm border">
+              <h2 className="text-lg font-semibold mb-4">📜 Audit Trail</h2>
+              {auditLog.length === 0 ? (
+                <p className="text-gray-500">No actions recorded yet.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {auditLog.map((log, i) => (
+                    <li key={i} className="text-sm">
+                      <span className="text-gray-500">{log.ts}</span> — {log.msg}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
         </div>
       );
     };
 
-    const root = ReactDOM.createRoot(document.getElementById("root"));
-    root.render(<PharmaceuticalMES />);
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
   </script>
 </body>
 </html>
