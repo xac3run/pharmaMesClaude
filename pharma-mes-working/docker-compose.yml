@@ -1,0 +1,8 @@
+version: '3.8'
+services:
+  pharma-mes:
+    build: .
+    container_name: pharma-mes-working
+    ports:
+      - "3000:80"
+    restart: unless-stopped

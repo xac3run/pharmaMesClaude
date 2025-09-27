@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  # Pharmaceutical MES Frontend
+  pharma-mes:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: pharmaceutical-mes
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+# Исправление DNS (если потребуется)
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4    
+    environment:
+      - NODE_ENV=production
+    networks:
+      - mes-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+  # PostgreSQL Database (для будущих данных)
+  postgres:
+    image: postgres:15-alpine
+    container_name: mes-database
+    environment:
+      POSTGRES_DB: pharmaceutical_mes
+      POSTGRES_USER: mes_user
+      POSTGRES_PASSWORD: SecurePassword123!
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - mes-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mes_user -d pharmaceutical_mes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Redis для кэширования и сессий
+  redis:
+    image: redis:7-alpine
+    container_name: mes-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - mes-network
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # NGINX Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: mes-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    restart: unless-stopped
+    networks:
+      - mes-network
+    depends_on:
+      - pharma-mes
+
+networks:
+  mes-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
