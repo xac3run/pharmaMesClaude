@@ -84,10 +84,13 @@
             { id: 2, item: "Microcrystalline Cellulose", quantity: 100, unit: "mg", lotNumber: "MCC-240102" }
           ],
           steps: [
-            { id: 1, name: "Weighing", type: "input", param: "Weight", min: 320, max: 330, materials: ["Aspirin API"], instruction: "Weigh raw materials accurately" },
-            { id: 2, name: "Blending", type: "instruction", instruction: "Blend for 10 minutes at 50 RPM", duration: 10 },
-            { id: 3, name: "Compression", type: "input", param: "Force", min: 8, max: 12, unit: "kN", instruction: "Compress tablets" },
-            { id: 4, name: "Visual QC", type: "control", param: "Defects", min: 0, max: 5, instruction: "Check for visual defects" }
+            { id: 1, name: "Weighing", type: "input", param: "Weight", min: 320, max: 330, materials: [
+              { id: 1, item: "Aspirin API", quantity: 325, unit: "mg", lotNumber: "ASP-240101" },
+              { id: 2, item: "Microcrystalline Cellulose", quantity: 100, unit: "mg", lotNumber: "MCC-240102" }
+            ], instruction: "Weigh raw materials accurately" },
+            { id: 2, name: "Blending", type: "instruction", instruction: "Blend for 10 minutes at 50 RPM", duration: 10, materials: [] },
+            { id: 3, name: "Compression", type: "input", param: "Force", min: 8, max: 12, unit: "kN", instruction: "Compress tablets", materials: [] },
+            { id: 4, name: "Visual QC", type: "control", param: "Defects", min: 0, max: 5, instruction: "Check for visual defects", materials: [] }
           ]
         },
         { 
@@ -116,6 +119,26 @@
       const [selectedBatch, setSelectedBatch] = useState(null);
       const [selectedTemplate, setSelectedTemplate] = useState(null);
       const [showNewBatchForm, setShowNewBatchForm] = useState(false);
+
+      // Equipment management
+      const [equipment, setEquipment] = useState([
+        { id: 1, name: "Tablet Press #1", type: "Compression", status: "in_operation", location: "Production Hall A", lastCalibration: "2024-01-01", nextCalibration: "2024-04-01" },
+        { id: 2, name: "Coating Pan #2", type: "Coating", status: "cleaning", location: "Production Hall B", lastCalibration: "2024-01-10", nextCalibration: "2024-04-10" },
+        { id: 3, name: "Blender #3", type: "Mixing", status: "calibration", location: "Production Hall A", lastCalibration: "2024-01-15", nextCalibration: "2024-04-15" }
+      ]);
+
+      // Personnel management
+      const [personnel, setPersonnel] = useState([
+        { id: 1, name: "John Doe", role: "Operator", department: "Production", status: "active", lastTraining: "2024-01-01", certifications: ["GMP Basic", "Equipment Operation"] },
+        { id: 2, name: "Jane Smith", role: "QC Analyst", department: "Quality", status: "active", lastTraining: "2024-01-05", certifications: ["QC Methods", "HPLC Operation"] },
+        { id: 3, name: "Mike Johnson", role: "Supervisor", department: "Production", status: "training", lastTraining: "2024-01-20", certifications: ["Leadership", "GMP Advanced"] }
+      ]);
+
+      // Batch deviations management
+      const [deviations, setDeviations] = useState([
+        { id: 1, batchId: "BR-2024-003", description: "Temperature exceeded limits", status: "pending", reportedBy: "Mike Johnson", reportedDate: "2024-01-20", investigator: null },
+        { id: 2, batchId: "BR-2024-001", description: "Minor weight variance", status: "approved", reportedBy: "John Doe", reportedDate: "2024-01-18", investigator: "Jane Smith" }
+      ]);
 
       // ---------------------------
       // Dashboard metrics calculation
@@ -160,9 +183,32 @@
       };
 
       const reportDeviation = (batchId, deviationText) => {
+        const newDeviation = {
+          id: Date.now(),
+          batchId,
+          description: deviationText || "Manual deviation reported",
+          status: "pending",
+          reportedBy: "Current User",
+          reportedDate: new Date().toISOString().split('T')[0],
+          investigator: null
+        };
+        setDeviations(prev => [...prev, newDeviation]);
+        
         setBatches(prev => prev.map(b => b.id === batchId
           ? { ...b, status: "deviation", deviation: deviationText || "Manual deviation reported" }
           : b
+        ));
+      };
+
+      const approveDeviation = (deviationId, investigator) => {
+        setDeviations(prev => prev.map(d => 
+          d.id === deviationId ? { ...d, status: "approved", investigator } : d
+        ));
+      };
+
+      const rejectDeviation = (deviationId, investigator) => {
+        setDeviations(prev => prev.map(d => 
+          d.id === deviationId ? { ...d, status: "rejected", investigator } : d
         ));
       };
 
@@ -191,10 +237,37 @@
             name: template.name + " (Copy)",
             version: "0.1",
             status: "draft",
-            createdDate: new Date().toISOString().split('T')[0]
+            createdDate: new Date().toISOString().split('T')[0],
+            bom: template.bom ? [...template.bom.map(item => ({ ...item, id: Date.now() + Math.random() }))] : [],
+            steps: template.steps ? [...template.steps.map(step => ({ ...step, id: Date.now() + Math.random() }))] : []
           };
           setTemplates(prev => [...prev, newTemplate]);
         }
+      };
+
+      const createNewVersion = (templateId) => {
+        const template = templates.find(t => t.id === templateId);
+        if (template) {
+          const currentVersion = parseFloat(template.version);
+          const newVersion = (currentVersion + 0.1).toFixed(1);
+          const newTemplate = {
+            ...template,
+            id: Date.now(),
+            version: newVersion,
+            status: "draft",
+            createdDate: new Date().toISOString().split('T')[0],
+            bom: template.bom ? [...template.bom.map(item => ({ ...item, id: Date.now() + Math.random() }))] : [],
+            steps: template.steps ? [...template.steps.map(step => ({ ...step, id: Date.now() + Math.random() }))] : []
+          };
+          setTemplates(prev => [...prev, newTemplate]);
+        }
+      };
+
+      const saveTemplate = (templateId) => {
+        setTemplates(prev => prev.map(t => 
+          t.id === templateId ? { ...t, lastSaved: new Date().toISOString() } : t
+        ));
+        alert('Template saved successfully!');
       };
 
       const updateTemplate = (templateId, field, value) => {
@@ -252,6 +325,50 @@
         ));
       };
 
+      const addMaterialToStep = (templateId, stepId) => {
+        setTemplates(prev => prev.map(t =>
+          t.id === templateId
+            ? { 
+                ...t, 
+                steps: t.steps.map(s => 
+                  s.id === stepId 
+                    ? { 
+                        ...s, 
+                        materials: [...(s.materials || []), { 
+                          id: Date.now(), 
+                          item: "New Material", 
+                          quantity: 0, 
+                          unit: "mg", 
+                          lotNumber: "" 
+                        }] 
+                      }
+                    : s
+                )
+              }
+            : t
+        ));
+      };
+
+      const updateStepMaterial = (templateId, stepId, materialId, field, value) => {
+        setTemplates(prev => prev.map(t =>
+          t.id === templateId
+            ? { 
+                ...t, 
+                steps: t.steps.map(s => 
+                  s.id === stepId 
+                    ? { 
+                        ...s, 
+                        materials: (s.materials || []).map(m => 
+                          m.id === materialId ? { ...m, [field]: value } : m
+                        )
+                      }
+                    : s
+                )
+              }
+            : t
+        ));
+      };
+
       const updateStep = (templateId, stepId, field, value) => {
         setTemplates(prev => prev.map(t =>
           t.id === templateId
@@ -287,22 +404,114 @@
       // ---------------------------
 
       // Dashboard Component
-      const Dashboard = () => (
-        <div className="space-y-6">
-          <h2 className="text-2xl font-bold mb-4">📊 Production Dashboard</h2>
-          
-          {/* KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div className="bg-blue-100 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-blue-800">{dashboardMetrics.activeBatches}</div>
-              <div className="text-sm text-blue-600">Active Batches</div>
+      const Dashboard = () => {
+        const [alerts, setAlerts] = useState([
+          { id: 1, type: "warning", message: "Equipment calibration due in 3 days", timestamp: "10:30 AM" },
+          { id: 2, type: "error", message: "Batch BR-2024-003 has deviation", timestamp: "09:15 AM" },
+          { id: 3, type: "info", message: "New batch started successfully", timestamp: "08:45 AM" }
+        ]);
+
+        return (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold mb-4">📊 Production Dashboard</h2>
+            
+            {/* Real-time KPI Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div className="bg-blue-100 p-4 rounded-lg relative">
+                <div className="text-2xl font-bold text-blue-800">{dashboardMetrics.activeBatches}</div>
+                <div className="text-sm text-blue-600">Active Batches</div>
+                <div className="absolute top-2 right-2 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+              </div>
+              <div className="bg-green-100 p-4 rounded-lg">
+                <div className="text-2xl font-bold text-green-800">{dashboardMetrics.completedBatches}</div>
+                <div className="text-sm text-green-600">Completed</div>
+              </div>
+              <div className="bg-red-100 p-4 rounded-lg relative">
+                <div className="text-2xl font-bold text-red-800">{dashboardMetrics.deviations}</div>
+                <div className="text-sm text-red-600">Deviations</div>
+                {dashboardMetrics.deviations > 0 && (
+                  <div className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                )}
+              </div>
+              <div className="bg-purple-100 p-4 rounded-lg">
+                <div className="text-2xl font-bold text-purple-800">{equipment.filter(e => e.status === 'in_operation').length}</div>
+                <div className="text-sm text-purple-600">Equipment Active</div>
+              </div>
+              <div className="bg-yellow-100 p-4 rounded-lg">
+                <div className="text-2xl font-bold text-yellow-800">{personnel.filter(p => p.status === 'active').length}</div>
+                <div className="text-sm text-yellow-600">Personnel On Duty</div>
+              </div>
+              <div className="bg-indigo-100 p-4 rounded-lg">
+                <div className="text-2xl font-bold text-indigo-800">{dashboardMetrics.efficiency}%</div>
+                <div className="text-sm text-indigo-600">OEE</div>
+              </div>
             </div>
-            <div className="bg-green-100 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-green-800">{dashboardMetrics.completedBatches}</div>
-              <div className="text-sm text-green-600">Completed</div>
+
+            {/* Alerts Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <div className="bg-white border rounded-lg p-4">
+                  <h3 className="text-lg font-semibold mb-3">📈 Production Trends</h3>
+                  <div className="h-48 bg-gray-100 rounded flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="text-4xl mb-2">📊</div>
+                      <div className="text-gray-600">Real-time production chart</div>
+                      <div className="text-sm text-gray-500 mt-2">Batch completion rate: +15% this week</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-white border rounded-lg p-4">
+                <h3 className="text-lg font-semibold mb-3">🚨 Live Alerts</h3>
+                <div className="space-y-3 max-h-48 overflow-y-auto">
+                  {alerts.map(alert => (
+                    <div key={alert.id} className={`p-3 rounded text-sm ${
+                      alert.type === 'error' ? 'bg-red-50 text-red-700 border-l-4 border-red-500' :
+                      alert.type === 'warning' ? 'bg-yellow-50 text-yellow-700 border-l-4 border-yellow-500' :
+                      'bg-blue-50 text-blue-700 border-l-4 border-blue-500'
+                    }`}>
+                      <div className="flex justify-between items-start">
+                        <span>{alert.message}</span>
+                        <span className="text-xs opacity-75">{alert.timestamp}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-            <div className="bg-red-100 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-red-800">{dashboardMetrics.deviations}</div>
+
+            {/* Recent Activity */}
+            <div className="bg-white border rounded-lg p-4">
+              <h3 className="text-lg font-semibold mb-3">Recent Activity</h3>
+              <div className="space-y-2">
+                {batches.slice(0, 5).map(batch => (
+                  <div key={batch.id} className="flex justify-between items-center py-2 border-b">
+                    <div>
+                      <span className="font-medium">{batch.id}</span> - {batch.product}
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        batch.status === 'completed' ? 'bg-green-100 text-green-800' :
+                        batch.status === 'deviation' ? 'bg-red-100 text-red-800' :
+                        'bg-blue-100 text-blue-800'
+                      }`}>
+                        {batch.status}
+                      </span>
+                      <div className="w-20 bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-blue-600 h-2 rounded-full" 
+                          style={{ width: `${batch.progress}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      };d-800">{dashboardMetrics.deviations}</div>
               <div className="text-sm text-red-600">Deviations</div>
             </div>
             <div className="bg-purple-100 p-4 rounded-lg">
@@ -453,7 +662,9 @@
                   { key: "dashboard", label: "Dashboard", icon: Icons.Dashboard },
                   { key: "batches", label: "Batches", icon: Icons.Batch },
                   { key: "templates", label: "eBR Templates", icon: Icons.Template },
-                  { key: "workflow", label: "Workflow", icon: Icons.Workflow }
+                  { key: "workflow", label: "Workflow", icon: Icons.Workflow },
+                  { key: "equipment", label: "Equipment", icon: () => <span>⚙️</span> },
+                  { key: "personnel", label: "Personnel", icon: Icons.User }
                 ].map(tab => (
                   <button
                     key={tab.key}
@@ -473,6 +684,251 @@
 
             {/* Content */}
             {activeTab === "dashboard" && <Dashboard />}
+
+            {/* Equipment Tab */}
+            {activeTab === "equipment" && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold">⚙️ Equipment Management</h2>
+                  <button 
+                    onClick={() => setEquipment(prev => [...prev, {
+                      id: Date.now(),
+                      name: "New Equipment",
+                      type: "General",
+                      status: "maintenance",
+                      location: "TBD",
+                      lastCalibration: new Date().toISOString().split('T')[0],
+                      nextCalibration: new Date(Date.now() + 90*24*60*60*1000).toISOString().split('T')[0]
+                    }])}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center space-x-2"
+                  >
+                    <Icons.Plus />
+                    <span>Add Equipment</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {equipment.map(eq => (
+                    <div key={eq.id} className="bg-white border rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h3 className="font-semibold text-lg">{eq.name}</h3>
+                          <p className="text-gray-600 text-sm">{eq.type}</p>
+                        </div>
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          eq.status === 'in_operation' ? 'bg-green-100 text-green-800' :
+                          eq.status === 'cleaning' ? 'bg-blue-100 text-blue-800' :
+                          eq.status === 'calibration' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {eq.status}
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-2 text-sm">
+                        <div><strong>Location:</strong> {eq.location}</div>
+                        <div><strong>Last Calibration:</strong> {eq.lastCalibration}</div>
+                        <div><strong>Next Calibration:</strong> {eq.nextCalibration}</div>
+                      </div>
+
+                      <div className="mt-4 flex space-x-2">
+                        <select 
+                          value={eq.status}
+                          onChange={(e) => setEquipment(prev => prev.map(e => 
+                            e.id === eq.id ? {...e, status: e.target.value} : e
+                          ))}
+                          className="flex-1 border px-2 py-1 rounded text-xs"
+                        >
+                          <option value="in_operation">In Operation</option>
+                          <option value="cleaning">Cleaning</option>
+                          <option value="calibration">Calibration</option>
+                          <option value="maintenance">Maintenance</option>
+                        </select>
+                        <button 
+                          onClick={() => setEquipment(prev => prev.map(e => 
+                            e.id === eq.id ? {...e, lastCalibration: new Date().toISOString().split('T')[0]} : e
+                          ))}
+                          className="bg-blue-500 text-white px-2 py-1 rounded text-xs"
+                        >
+                          Calibrate
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Deviations Management */}
+                <div className="bg-white border rounded-lg p-6">
+                  <h3 className="text-lg font-semibold mb-4">🚨 Deviation Management</h3>
+                  <div className="space-y-3">
+                    {deviations.map(deviation => (
+                      <div key={deviation.id} className="border rounded p-4 bg-gray-50">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <h4 className="font-medium">Batch: {deviation.batchId}</h4>
+                            <p className="text-gray-600 text-sm">{deviation.description}</p>
+                            <div className="text-xs text-gray-500 mt-1">
+                              Reported by: {deviation.reportedBy} on {deviation.reportedDate}
+                              {deviation.investigator && <span> | Investigator: {deviation.investigator}</span>}
+                            </div>
+                          </div>
+                          <span className={`px-2 py-1 rounded text-xs ${
+                            deviation.status === 'approved' ? 'bg-green-100 text-green-800' :
+                            deviation.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {deviation.status}
+                          </span>
+                        </div>
+                        
+                        {deviation.status === 'pending' && (
+                          <div className="flex space-x-2 mt-3">
+                            <button
+                              onClick={() => {
+                                const investigator = prompt("Enter investigator name:");
+                                if (investigator) approveDeviation(deviation.id, investigator);
+                              }}
+                              className="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => {
+                                const investigator = prompt("Enter investigator name:");
+                                if (investigator) rejectDeviation(deviation.id, investigator);
+                              }}
+                              className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Personnel Tab */}
+            {activeTab === "personnel" && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold">👤 Personnel Management</h2>
+                  <button 
+                    onClick={() => setPersonnel(prev => [...prev, {
+                      id: Date.now(),
+                      name: "New Employee",
+                      role: "Operator",
+                      department: "Production",
+                      status: "training",
+                      lastTraining: new Date().toISOString().split('T')[0],
+                      certifications: []
+                    }])}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center space-x-2"
+                  >
+                    <Icons.Plus />
+                    <span>Add Personnel</span>
+                  </button>
+                </div>
+
+                <div className="bg-white border rounded-lg overflow-hidden">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left">Name</th>
+                        <th className="px-4 py-3 text-left">Role</th>
+                        <th className="px-4 py-3 text-left">Department</th>
+                        <th className="px-4 py-3 text-left">Status</th>
+                        <th className="px-4 py-3 text-left">Last Training</th>
+                        <th className="px-4 py-3 text-left">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {personnel.map((person, index) => (
+                        <tr key={person.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                          <td className="px-4 py-3">
+                            <input 
+                              className="w-full bg-transparent border-none"
+                              value={person.name}
+                              onChange={(e) => setPersonnel(prev => prev.map(p => 
+                                p.id === person.id ? {...p, name: e.target.value} : p
+                              ))}
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <select 
+                              value={person.role}
+                              onChange={(e) => setPersonnel(prev => prev.map(p => 
+                                p.id === person.id ? {...p, role: e.target.value} : p
+                              ))}
+                              className="w-full border rounded px-2 py-1"
+                            >
+                              <option value="Operator">Operator</option>
+                              <option value="QC Analyst">QC Analyst</option>
+                              <option value="Supervisor">Supervisor</option>
+                              <option value="Manager">Manager</option>
+                            </select>
+                          </td>
+                          <td className="px-4 py-3">{person.department}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-1 rounded text-xs ${
+                              person.status === 'active' ? 'bg-green-100 text-green-800' :
+                              person.status === 'training' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {person.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">{person.lastTraining}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex space-x-2">
+                              <button 
+                                onClick={() => setPersonnel(prev => prev.map(p => 
+                                  p.id === person.id ? {...p, status: p.status === 'active' ? 'inactive' : 'active'} : p
+                                ))}
+                                className="text-blue-600 hover:bg-blue-100 px-2 py-1 rounded text-xs"
+                              >
+                                Toggle
+                              </button>
+                              <button 
+                                onClick={() => setPersonnel(prev => prev.filter(p => p.id !== person.id))}
+                                className="text-red-600 hover:bg-red-100 px-2 py-1 rounded text-xs"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Certifications Overview */}
+                <div className="bg-white border rounded-lg p-4">
+                  <h3 className="text-lg font-semibold mb-3">Training & Certifications</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {personnel.map(person => (
+                      <div key={person.id} className="border rounded p-3">
+                        <h4 className="font-medium">{person.name}</h4>
+                        <div className="text-sm text-gray-600 mt-1">
+                          {person.certifications.length > 0 ? (
+                            <ul className="list-disc list-inside">
+                              {person.certifications.map((cert, i) => (
+                                <li key={i}>{cert}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <span className="text-gray-400">No certifications</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Batches Tab */}
             {activeTab === "batches" && (
@@ -604,6 +1060,20 @@
                             </div>
                           </div>
                           <div className="flex space-x-2">
+                            <button
+                              onClick={() => saveTemplate(template.id)}
+                              className="p-2 text-green-600 hover:bg-green-100 rounded"
+                              title="Save Template"
+                            >
+                              <Icons.Save />
+                            </button>
+                            <button
+                              onClick={() => createNewVersion(template.id)}
+                              className="p-2 text-purple-600 hover:bg-purple-100 rounded"
+                              title="Create New Version"
+                            >
+                              📝
+                            </button>
                             <button
                               onClick={() => cloneTemplate(template.id)}
                               className="p-2 text-blue-600 hover:bg-blue-100 rounded"
@@ -769,15 +1239,72 @@
                                     />
                                   </div>
 
+                                  {/* Materials for this step */}
+                                  <div className="mb-3">
+                                    <div className="flex justify-between items-center mb-2">
+                                      <label className="block text-xs text-gray-600">Materials Required for This Step</label>
+                                      <button
+                                        onClick={() => addMaterialToStep(template.id, step.id)}
+                                        className="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600"
+                                      >
+                                        Add Material
+                                      </button>
+                                    </div>
+                                    {step.materials && step.materials.length > 0 && (
+                                      <div className="space-y-2 bg-blue-50 p-2 rounded">
+                                        {step.materials.map(material => (
+                                          <div key={material.id} className="grid grid-cols-5 gap-2 items-center">
+                                            <input
+                                              className="border px-2 py-1 rounded text-xs"
+                                              placeholder="Material name"
+                                              value={material.item}
+                                              onChange={(e) => updateStepMaterial(template.id, step.id, material.id, 'item', e.target.value)}
+                                            />
+                                            <input
+                                              type="number"
+                                              className="border px-2 py-1 rounded text-xs"
+                                              placeholder="Qty"
+                                              value={material.quantity}
+                                              onChange={(e) => updateStepMaterial(template.id, step.id, material.id, 'quantity', e.target.value)}
+                                            />
+                                            <input
+                                              className="border px-2 py-1 rounded text-xs"
+                                              placeholder="Unit"
+                                              value={material.unit}
+                                              onChange={(e) => updateStepMaterial(template.id, step.id, material.id, 'unit', e.target.value)}
+                                            />
+                                            <input
+                                              className="border px-2 py-1 rounded text-xs"
+                                              placeholder="Lot#"
+                                              value={material.lotNumber}
+                                              onChange={(e) => updateStepMaterial(template.id, step.id, material.id, 'lotNumber', e.target.value)}
+                                            />
+                                            <button
+                                              onClick={() => setTemplates(prev => prev.map(t =>
+                                                t.id === template.id
+                                                  ? { 
+                                                      ...t, 
+                                                      steps: t.steps.map(s => 
+                                                        s.id === step.id 
+                                                          ? { ...s, materials: (s.materials || []).filter(m => m.id !== material.id) }
+                                                          : s
+                                                      )
+                                                    }
+                                                  : t
+                                              ))}
+                                              className="p-1 text-red-600 hover:bg-red-100 rounded text-xs"
+                                            >
+                                              🗑️
+                                            </button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+
                                   <div className="flex justify-between items-center">
-                                    <div className="flex-1">
-                                      <label className="block text-xs text-gray-600 mb-1">Required Materials</label>
-                                      <input
-                                        className="w-full border px-2 py-1 rounded"
-                                        placeholder="Material 1, Material 2, ..."
-                                        value={step.materials?.join(", ") || ""}
-                                        onChange={(e) => updateStep(template.id, step.id, "materials", e.target.value.split(",").map(m => m.trim()).filter(m => m))}
-                                      />
+                                    <div className="text-xs text-gray-500">
+                                      Step {index + 1} of {template.steps.length}
                                     </div>
                                     <button
                                       onClick={() => setTemplates(prev => prev.map(t =>
@@ -785,7 +1312,7 @@
                                           ? { ...t, steps: t.steps.filter(s => s.id !== step.id) }
                                           : t
                                       ))}
-                                      className="ml-3 p-2 text-red-600 hover:bg-red-100 rounded"
+                                      className="p-2 text-red-600 hover:bg-red-100 rounded"
                                     >
                                       <Icons.Trash />
                                     </button>
