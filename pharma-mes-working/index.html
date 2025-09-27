@@ -9,7 +9,7 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
+<body class="bg-gray-100">
   <div id="root"></div>
 
   <script type="text/babel">
@@ -71,7 +71,7 @@
       };
 
       // ---------------------------
-      // Templates logic (🔥 NEW editable)
+      // Templates logic
       // ---------------------------
       const addTemplate = () => {
         setTemplates(prev => [...prev, {
@@ -100,7 +100,7 @@
       };
 
       // ---------------------------
-      // Workflow logic (🔥 NEW)
+      // Workflow logic
       // ---------------------------
       const updateWorkflowStep = (sid, value) => {
         setWorkflow(prev => prev.map(s =>
@@ -130,22 +130,46 @@
 
           {/* Navigation */}
           <nav className="flex space-x-4 border-b pb-2 mb-6">
-            <button onClick={() => setActiveTab("dashboard")} className={activeTab === "dashboard" ? "font-bold" : ""}><Icons.Dashboard /> Dashboard</button>
-            <button onClick={() => setActiveTab("batches")} className={activeTab === "batches" ? "font-bold" : ""}><Icons.Batch /> Batches</button>
-            <button onClick={() => setActiveTab("templates")} className={activeTab === "templates" ? "font-bold" : ""}><Icons.Template /> eBR Templates</button>
-            <button onClick={() => setActiveTab("workflow")} className={activeTab === "workflow" ? "font-bold" : ""}><Icons.Workflow /> Workflow</button>
+            <button onClick={() => setActiveTab("dashboard")} className={activeTab === "dashboard" ? "font-bold text-blue-600" : ""}><Icons.Dashboard /> Dashboard</button>
+            <button onClick={() => setActiveTab("batches")} className={activeTab === "batches" ? "font-bold text-blue-600" : ""}><Icons.Batch /> Batches</button>
+            <button onClick={() => setActiveTab("templates")} className={activeTab === "templates" ? "font-bold text-blue-600" : ""}><Icons.Template /> eBR Templates</button>
+            <button onClick={() => setActiveTab("workflow")} className={activeTab === "workflow" ? "font-bold text-blue-600" : ""}><Icons.Workflow /> Workflow</button>
           </nav>
 
           {/* Dashboard */}
           {activeTab === "dashboard" && (
             <div>
               <h2 className="text-xl font-semibold mb-4">📊 Production KPIs</h2>
-              <ul className="list-disc ml-6">
-                <li>Active batches: {batches.filter(b => b.status !== "completed").length}</li>
-                <li>Completed: {batches.filter(b => b.status === "completed").length}</li>
-                <li>Deviations: {batches.filter(b => b.status === "deviation").length}</li>
-                <li>Templates: {templates.length}</li>
-              </ul>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-white shadow rounded p-4 flex items-center">
+                  <span className="text-3xl mr-3">🧪</span>
+                  <div>
+                    <p className="text-sm text-gray-500">Active Batches</p>
+                    <p className="text-xl font-bold">{batches.filter(b => b.status !== "completed").length}</p>
+                  </div>
+                </div>
+                <div className="bg-white shadow rounded p-4 flex items-center">
+                  <span className="text-3xl mr-3">✅</span>
+                  <div>
+                    <p className="text-sm text-gray-500">Completed</p>
+                    <p className="text-xl font-bold">{batches.filter(b => b.status === "completed").length}</p>
+                  </div>
+                </div>
+                <div className="bg-white shadow rounded p-4 flex items-center">
+                  <span className="text-3xl mr-3">⚠️</span>
+                  <div>
+                    <p className="text-sm text-gray-500">Deviations</p>
+                    <p className="text-xl font-bold">{batches.filter(b => b.status === "deviation").length}</p>
+                  </div>
+                </div>
+                <div className="bg-white shadow rounded p-4 flex items-center">
+                  <span className="text-3xl mr-3">📋</span>
+                  <div>
+                    <p className="text-sm text-gray-500">Templates</p>
+                    <p className="text-xl font-bold">{templates.length}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -154,16 +178,26 @@
             <div>
               <h2 className="text-xl font-semibold mb-4">🧪 Batch Records</h2>
               {batches.map(b => (
-                <div key={b.id} className="border p-3 mb-3 rounded">
-                  <div className="flex justify-between items-center">
+                <div key={b.id} className="border p-3 mb-3 rounded bg-white shadow-sm">
+                  <div className="flex justify-between items-center mb-2">
                     <div>
                       <strong>{b.id}</strong> — {b.product}
                       {b.deviation && <span className="text-red-600 ml-2">⚠️ {b.deviation}</span>}
                     </div>
-                    <span>Status: {b.status}</span>
+                    <span className={`px-2 py-1 text-xs rounded ${
+                      b.status === "completed" ? "bg-green-100 text-green-700" :
+                      b.status === "in_progress" ? "bg-blue-100 text-blue-700" :
+                      "bg-red-100 text-red-700"
+                    }`}>
+                      {b.status}
+                    </span>
                   </div>
-                  <div className="w-full bg-gray-200 h-2 my-2">
-                    <div className="bg-blue-600 h-2" style={{ width: `${b.progress}%` }}></div>
+                  <div className="w-full bg-gray-200 h-2 my-2 rounded">
+                    <div className={`h-2 rounded ${
+                      b.status === "completed" ? "bg-green-500" :
+                      b.status === "in_progress" ? "bg-blue-500" :
+                      "bg-red-500"
+                    }`} style={{ width: `${b.progress}%` }}></div>
                   </div>
                   {b.status === "in_progress" && (
                     <div className="flex space-x-2">
@@ -184,8 +218,8 @@
                 <button className="bg-green-600 text-white px-3 py-1 rounded" onClick={addTemplate}><Icons.Plus /> Add Template</button>
               </div>
               {templates.map(t => (
-                <div key={t.id} className="border p-3 mb-3 rounded">
-                  <div className="flex justify-between">
+                <div key={t.id} className="border p-3 mb-3 rounded bg-white shadow-sm">
+                  <div className="flex justify-between items-center">
                     <div>
                       <strong>{t.name}</strong> (v{t.version}) — {t.status}
                     </div>
@@ -227,15 +261,27 @@
             </div>
           )}
 
-          {/* Workflow (🔥 NEW) */}
+          {/* Workflow */}
           {activeTab === "workflow" && (
             <div>
               <h2 className="text-xl font-semibold mb-4">🔄 Workflow Execution</h2>
               {workflow.map(s => (
-                <div key={s.id} className="border p-3 mb-2 rounded">
-                  <div className="flex justify-between">
-                    <strong>{s.name}</strong>
-                    <span>Status: {s.status}</span>
+                <div key={s.id} className="border p-3 mb-2 rounded bg-white shadow-sm">
+                  <div className="flex justify-between items-center mb-2">
+                    <strong>
+                      {s.type === "instruction" && "📖 "}
+                      {s.type === "input" && "⌨️ "}
+                      {s.type === "control" && "⚙️ "}
+                      {s.name}
+                    </strong>
+                    <span className={`px-2 py-1 text-xs rounded ${
+                      s.status === "done" ? "bg-green-100 text-green-700" :
+                      s.status === "ok" ? "bg-green-200 text-green-800" :
+                      s.status === "blocked" ? "bg-red-100 text-red-700" :
+                      "bg-gray-100 text-gray-700"
+                    }`}>
+                      {s.status}
+                    </span>
                   </div>
                   {s.type === "instruction" && (
                     <button className="bg-blue-500 text-white px-2 py-1 mt-2 rounded" onClick={() => updateWorkflowStep(s.id, "confirmed")}>Confirm</button>
