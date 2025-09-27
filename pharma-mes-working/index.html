@@ -38,16 +38,15 @@
         { id: "BR-2024-003", product: "Ibuprofen 200mg Capsules", status: "deviation", progress: 45, operator: "Alex Johnson", deviation: "Temperature exceeded limits" }
       ]);
 
--     const [templates, setTemplates] = useState([
-+     const [templates, setTemplates] = useState([ // 🔥 NEW — editable templates
+      const [templates, setTemplates] = useState([
         { id: 1, name: "Aspirin 325mg - Tableting Process", version: "1.2", status: "approved", steps: 3 },
         { id: 2, name: "Paracetamol 500mg - Coating Process", version: "2.1", status: "draft", steps: 5 },
         { id: 3, name: "Ibuprofen 200mg - Encapsulation", version: "1.0", status: "review", steps: 4 }
       ]);
 
-+     // 🔥 NEW — modal state
-+     const [editingTemplate, setEditingTemplate] = useState(null);
-+     const [modalOpen, setModalOpen] = useState(false);
+      // modal state
+      const [editingTemplate, setEditingTemplate] = useState(null);
+      const [modalOpen, setModalOpen] = useState(false);
 
       useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -79,36 +78,51 @@
       };
 
       // === Templates logic ===
-+     const createTemplate = () => { // 🔥 NEW
-+       const newTemplate = { id: templates.length + 1, name: `New Template ${templates.length + 1}`, version: "0.1", status: "draft", steps: 1 };
-+       setTemplates([...templates, newTemplate]);
-+     };
-+
-+     const configureTemplate = (template) => { // 🔥 NEW
-+       setEditingTemplate({ ...template });
-+       setModalOpen(true);
-+     };
-+
-+     const saveTemplate = () => { // 🔥 NEW
-+       setTemplates(prev => prev.map(t => (t.id === editingTemplate.id ? editingTemplate : t)));
-+       setModalOpen(false);
-+     };
-+
-+     const copyTemplate = (template) => { // 🔥 NEW
-+       const copy = { ...template, id: templates.length + 1, name: `${template.name} (Copy)`, status: "draft" };
-+       setTemplates([...templates, copy]);
-+     };
-+
-+     const startBatchFromTemplate = (template) => { // 🔥 NEW
-+       alert(`▶️ Starting batch from "${template.name}"`);
-+     };
+      const createTemplate = () => {
+        const newTemplate = { id: templates.length + 1, name: `New Template ${templates.length + 1}`, version: "0.1", status: "draft", steps: 1 };
+        setTemplates([...templates, newTemplate]);
+      };
+
+      const configureTemplate = (template) => {
+        setEditingTemplate({ ...template });
+        setModalOpen(true);
+      };
+
+      const saveTemplate = () => {
+        setTemplates(prev => prev.map(t => (t.id === editingTemplate.id ? editingTemplate : t)));
+        setModalOpen(false);
+      };
+
+      const copyTemplate = (template) => {
+        const copy = { ...template, id: templates.length + 1, name: `${template.name} (Copy)`, status: "draft" };
+        setTemplates([...templates, copy]);
+      };
+
+      const startBatchFromTemplate = (template) => {
+        alert(`▶️ Starting batch from "${template.name}"`);
+      };
 
       if (isLoading) return <div className="flex h-screen items-center justify-center">Loading...</div>;
 
       return (
-        <div className="p-6">
+        <div className="p-6 max-w-7xl mx-auto">
+          {/* Company Branding */}
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center">
+              <img src="assets/logo.png" alt="Нобилис.Тех Logo" className="h-14 w-14 mr-4"/>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Нобилис.Тех</h1>
+                <p className="text-gray-600">Pharmaceutical MES Platform</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-sm text-gray-500">{currentTime.toLocaleDateString()} {currentTime.toLocaleTimeString()}</div>
+              <div className="text-sm text-green-600 font-medium">● React System Online</div>
+            </div>
+          </div>
+
           {/* Tabs */}
-          <div className="mb-6 flex gap-4">
+          <div className="mb-6 flex gap-4 border-b pb-2">
             <button onClick={() => setActiveTab("dashboard")}>📊 Dashboard</button>
             <button onClick={() => setActiveTab("batches")}>🧪 Batches</button>
             <button onClick={() => setActiveTab("templates")}>📋 eBR Templates</button>
@@ -180,7 +194,7 @@
             </div>
           )}
 
-          {/* 🔥 NEW — Modal */}
+          {/* Modal for Configure */}
           {modalOpen && editingTemplate && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
               <div className="bg-white p-6 rounded shadow-lg w-96">
