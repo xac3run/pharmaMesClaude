@@ -9,11 +9,11 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100">
+<body>
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState } = React;
+    const { useState, useEffect } = React;
 
     // Простые иконки через emoji
     const Icons = {
@@ -28,7 +28,9 @@
       Check: () => <span>✅</span>,
       Alert: () => <span>⚠️</span>,
       User: () => <span>👤</span>,
-      Materials: () => <span>📦</span>
+      Materials: () => <span>📦</span>,
+      Copy: () => <span>📄</span>,
+      Archive: () => <span>📁</span>
     };
 
     // ---------------------------
@@ -37,276 +39,931 @@
     function App() {
       const [activeTab, setActiveTab] = useState("dashboard");
       const [batches, setBatches] = useState([
-        { id: "BR-2024-001", product: "Aspirin 325mg", status: "in_progress", progress: 65 },
-        { id: "BR-2024-002", product: "Paracetamol 500mg", status: "completed", progress: 100 },
-        { id: "BR-2024-003", product: "Ibuprofen 200mg", status: "deviation", progress: 45, deviation: "Temp exceeded" }
+        { 
+          id: "BR-2024-001", 
+          product: "Aspirin 325mg", 
+          status: "in_progress", 
+          progress: 65,
+          templateId: 1,
+          startDate: "2024-01-15",
+          operator: "John Doe",
+          currentStep: "Compression"
+        },
+        { 
+          id: "BR-2024-002", 
+          product: "Paracetamol 500mg", 
+          status: "completed", 
+          progress: 100,
+          templateId: 2,
+          startDate: "2024-01-10",
+          operator: "Jane Smith",
+          currentStep: "Finished"
+        },
+        { 
+          id: "BR-2024-003", 
+          product: "Ibuprofen 200mg", 
+          status: "deviation", 
+          progress: 45, 
+          deviation: "Temp exceeded",
+          templateId: 1,
+          startDate: "2024-01-20",
+          operator: "Mike Johnson",
+          currentStep: "Visual QC"
+        }
       ]);
 
       const [templates, setTemplates] = useState([
-        { id: 1, name: "Aspirin 325mg - Tableting", version: "1.0", status: "approved", steps: [] },
-        { id: 2, name: "Paracetamol 500mg - Coating", version: "1.1", status: "draft", steps: [] }
+        { 
+          id: 1, 
+          name: "Aspirin 325mg - Tableting", 
+          version: "1.0", 
+          status: "approved", 
+          createdDate: "2024-01-01",
+          bom: [
+            { id: 1, item: "Aspirin API", quantity: 325, unit: "mg", lotNumber: "ASP-240101" },
+            { id: 2, item: "Microcrystalline Cellulose", quantity: 100, unit: "mg", lotNumber: "MCC-240102" }
+          ],
+          steps: [
+            { id: 1, name: "Weighing", type: "input", param: "Weight", min: 320, max: 330, materials: ["Aspirin API"], instruction: "Weigh raw materials accurately" },
+            { id: 2, name: "Blending", type: "instruction", instruction: "Blend for 10 minutes at 50 RPM", duration: 10 },
+            { id: 3, name: "Compression", type: "input", param: "Force", min: 8, max: 12, unit: "kN", instruction: "Compress tablets" },
+            { id: 4, name: "Visual QC", type: "control", param: "Defects", min: 0, max: 5, instruction: "Check for visual defects" }
+          ]
+        },
+        { 
+          id: 2, 
+          name: "Paracetamol 500mg - Coating", 
+          version: "1.1", 
+          status: "draft", 
+          createdDate: "2024-01-05",
+          bom: [
+            { id: 1, item: "Paracetamol API", quantity: 500, unit: "mg", lotNumber: "PAR-240103" }
+          ],
+          steps: [
+            { id: 1, name: "Core Preparation", type: "instruction", instruction: "Prepare tablet cores" },
+            { id: 2, name: "Coating", type: "input", param: "Thickness", min: 50, max: 100, unit: "μm" }
+          ]
+        }
       ]);
 
       const [workflow, setWorkflow] = useState([
-        { id: 1, name: "Weighing", type: "input", param: "Weight", min: 320, max: 330, value: null, status: "pending" },
-        { id: 2, name: "Compression", type: "instruction", status: "pending" },
-        { id: 3, name: "Visual QC", type: "control", param: "Defects", min: 0, max: 5, value: null, status: "pending" }
+        { id: 1, name: "Weighing", type: "input", param: "Weight", min: 320, max: 330, value: null, status: "pending", operator: null, timestamp: null },
+        { id: 2, name: "Blending", type: "instruction", status: "pending", operator: null, timestamp: null },
+        { id: 3, name: "Compression", type: "input", param: "Force", min: 8, max: 12, value: null, status: "pending", operator: null, timestamp: null },
+        { id: 4, name: "Visual QC", type: "control", param: "Defects", min: 0, max: 5, value: null, status: "pending", operator: null, timestamp: null }
       ]);
 
+      const [selectedBatch, setSelectedBatch] = useState(null);
+      const [selectedTemplate, setSelectedTemplate] = useState(null);
+      const [showNewBatchForm, setShowNewBatchForm] = useState(false);
+
       // ---------------------------
-      // Batches logic
+      // Dashboard metrics calculation
       // ---------------------------
-      const completeStep = (id) => {
-        setBatches(prev => prev.map(b => b.id === id
-          ? { ...b, progress: Math.min(b.progress + 30, 100), status: b.progress + 30 >= 100 ? "completed" : "in_progress" }
+      const dashboardMetrics = {
+        activeBatches: batches.filter(b => b.status === "in_progress").length,
+        completedBatches: batches.filter(b => b.status === "completed").length,
+        deviations: batches.filter(b => b.status === "deviation").length,
+        totalTemplates: templates.length,
+        approvedTemplates: templates.filter(t => t.status === "approved").length,
+        efficiency: batches.length > 0 ? Math.round((batches.filter(b => b.status === "completed").length / batches.length) * 100) : 0
+      };
+
+      // ---------------------------
+      // Batch management
+      // ---------------------------
+      const createNewBatch = (formData) => {
+        const newBatch = {
+          id: `BR-2024-${String(batches.length + 1).padStart(3, '0')}`,
+          product: formData.product,
+          status: "in_progress",
+          progress: 0,
+          templateId: parseInt(formData.templateId),
+          startDate: new Date().toISOString().split('T')[0],
+          operator: formData.operator,
+          currentStep: "Not Started"
+        };
+        setBatches(prev => [...prev, newBatch]);
+        setShowNewBatchForm(false);
+      };
+
+      const completeStep = (batchId) => {
+        setBatches(prev => prev.map(b => b.id === batchId
+          ? { 
+              ...b, 
+              progress: Math.min(b.progress + 25, 100), 
+              status: b.progress + 25 >= 100 ? "completed" : "in_progress",
+              currentStep: b.progress + 25 >= 100 ? "Finished" : "Next Step"
+            }
           : b
         ));
       };
 
-      const reportDeviation = (id) => {
-        setBatches(prev => prev.map(b => b.id === id
-          ? { ...b, status: "deviation", deviation: "Manual deviation reported" }
+      const reportDeviation = (batchId, deviationText) => {
+        setBatches(prev => prev.map(b => b.id === batchId
+          ? { ...b, status: "deviation", deviation: deviationText || "Manual deviation reported" }
           : b
         ));
       };
 
       // ---------------------------
-      // Templates logic
+      // Template management (Enhanced)
       // ---------------------------
       const addTemplate = () => {
-        setTemplates(prev => [...prev, {
+        const newTemplate = {
           id: Date.now(),
           name: "New Template",
           version: "0.1",
           status: "draft",
+          createdDate: new Date().toISOString().split('T')[0],
+          bom: [],
           steps: []
-        }]);
+        };
+        setTemplates(prev => [...prev, newTemplate]);
       };
 
-      const addStep = (tid) => {
+      const cloneTemplate = (templateId) => {
+        const template = templates.find(t => t.id === templateId);
+        if (template) {
+          const newTemplate = {
+            ...template,
+            id: Date.now(),
+            name: template.name + " (Copy)",
+            version: "0.1",
+            status: "draft",
+            createdDate: new Date().toISOString().split('T')[0]
+          };
+          setTemplates(prev => [...prev, newTemplate]);
+        }
+      };
+
+      const updateTemplate = (templateId, field, value) => {
+        setTemplates(prev => prev.map(t => 
+          t.id === templateId ? { ...t, [field]: value } : t
+        ));
+      };
+
+      const addBomItem = (templateId) => {
         setTemplates(prev => prev.map(t =>
-          t.id === tid
-            ? { ...t, steps: [...t.steps, { id: Date.now(), name: "New Step", param: "", min: null, max: null, materials: [] }] }
+          t.id === templateId
+            ? { 
+                ...t, 
+                bom: [...t.bom, { 
+                  id: Date.now(), 
+                  item: "New Material", 
+                  quantity: 0, 
+                  unit: "mg", 
+                  lotNumber: "" 
+                }] 
+              }
             : t
         ));
       };
 
-      const updateStep = (tid, sid, field, value) => {
+      const updateBomItem = (templateId, bomId, field, value) => {
         setTemplates(prev => prev.map(t =>
-          t.id === tid
-            ? { ...t, steps: t.steps.map(s => s.id === sid ? { ...s, [field]: value } : s) }
+          t.id === templateId
+            ? { 
+                ...t, 
+                bom: t.bom.map(b => b.id === bomId ? { ...b, [field]: value } : b) 
+              }
+            : t
+        ));
+      };
+
+      const addStep = (templateId) => {
+        setTemplates(prev => prev.map(t =>
+          t.id === templateId
+            ? { 
+                ...t, 
+                steps: [...t.steps, { 
+                  id: Date.now(), 
+                  name: "New Step", 
+                  type: "instruction",
+                  param: "", 
+                  min: null, 
+                  max: null, 
+                  unit: "",
+                  materials: [],
+                  instruction: ""
+                }] 
+              }
+            : t
+        ));
+      };
+
+      const updateStep = (templateId, stepId, field, value) => {
+        setTemplates(prev => prev.map(t =>
+          t.id === templateId
+            ? { ...t, steps: t.steps.map(s => s.id === stepId ? { ...s, [field]: value } : s) }
             : t
         ));
       };
 
       // ---------------------------
-      // Workflow logic
+      // Workflow execution (Enhanced)
       // ---------------------------
-      const updateWorkflowStep = (sid, value) => {
+      const updateWorkflowStep = (stepId, value, operator = "Current User") => {
+        const timestamp = new Date().toLocaleString();
         setWorkflow(prev => prev.map(s =>
-          s.id === sid
+          s.id === stepId
             ? {
                 ...s,
                 value,
+                operator,
+                timestamp,
                 status:
+                  s.type === "instruction" ? "completed" :
                   s.type === "control"
-                    ? (value >= s.min && value <= s.max ? "ok" : "blocked")
-                    : "done"
+                    ? (value >= s.min && value <= s.max ? "passed" : "failed")
+                    : "completed"
               }
             : s
         ));
       };
 
       // ---------------------------
-      // Render UI
+      // Render Components
       // ---------------------------
+
+      // Dashboard Component
+      const Dashboard = () => (
+        <div className="space-y-6">
+          <h2 className="text-2xl font-bold mb-4">📊 Production Dashboard</h2>
+          
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="bg-blue-100 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-blue-800">{dashboardMetrics.activeBatches}</div>
+              <div className="text-sm text-blue-600">Active Batches</div>
+            </div>
+            <div className="bg-green-100 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-green-800">{dashboardMetrics.completedBatches}</div>
+              <div className="text-sm text-green-600">Completed</div>
+            </div>
+            <div className="bg-red-100 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-red-800">{dashboardMetrics.deviations}</div>
+              <div className="text-sm text-red-600">Deviations</div>
+            </div>
+            <div className="bg-purple-100 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-purple-800">{dashboardMetrics.totalTemplates}</div>
+              <div className="text-sm text-purple-600">Templates</div>
+            </div>
+            <div className="bg-yellow-100 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-yellow-800">{dashboardMetrics.approvedTemplates}</div>
+              <div className="text-sm text-yellow-600">Approved</div>
+            </div>
+            <div className="bg-indigo-100 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-indigo-800">{dashboardMetrics.efficiency}%</div>
+              <div className="text-sm text-indigo-600">Efficiency</div>
+            </div>
+          </div>
+
+          {/* Recent Activity */}
+          <div className="bg-white border rounded-lg p-4">
+            <h3 className="text-lg font-semibold mb-3">Recent Activity</h3>
+            <div className="space-y-2">
+              {batches.slice(0, 5).map(batch => (
+                <div key={batch.id} className="flex justify-between items-center py-2 border-b">
+                  <div>
+                    <span className="font-medium">{batch.id}</span> - {batch.product}
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className={`px-2 py-1 rounded text-xs ${
+                      batch.status === 'completed' ? 'bg-green-100 text-green-800' :
+                      batch.status === 'deviation' ? 'bg-red-100 text-red-800' :
+                      'bg-blue-100 text-blue-800'
+                    }`}>
+                      {batch.status}
+                    </span>
+                    <div className="w-20 bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-600 h-2 rounded-full" 
+                        style={{ width: `${batch.progress}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+
+      // New Batch Form Component
+      const NewBatchForm = () => {
+        const [formData, setFormData] = useState({
+          product: '',
+          templateId: '',
+          operator: 'Current User'
+        });
+
+        const handleSubmit = (e) => {
+          e.preventDefault();
+          if (formData.product && formData.templateId) {
+            createNewBatch(formData);
+          }
+        };
+
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg w-96">
+              <h3 className="text-lg font-semibold mb-4">Create New Batch</h3>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Product</label>
+                  <input
+                    type="text"
+                    className="w-full border px-3 py-2 rounded"
+                    value={formData.product}
+                    onChange={(e) => setFormData({...formData, product: e.target.value})}
+                    placeholder="Product name"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Template</label>
+                  <select
+                    className="w-full border px-3 py-2 rounded"
+                    value={formData.templateId}
+                    onChange={(e) => setFormData({...formData, templateId: e.target.value})}
+                    required
+                  >
+                    <option value="">Select template</option>
+                    {templates.filter(t => t.status === 'approved').map(t => (
+                      <option key={t.id} value={t.id}>{t.name} (v{t.version})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Operator</label>
+                  <input
+                    type="text"
+                    className="w-full border px-3 py-2 rounded"
+                    value={formData.operator}
+                    onChange={(e) => setFormData({...formData, operator: e.target.value})}
+                  />
+                </div>
+                <div className="flex space-x-3">
+                  <button
+                    type="submit"
+                    className="flex-1 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                  >
+                    Create Batch
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowNewBatchForm(false)}
+                    className="flex-1 bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      };
+
+      // Main render
       return (
-        <div className="p-6">
-          {/* Header with logo */}
-          <header className="flex items-center mb-6">
-            <img src="assets/logo.svg" alt="Logo" className="h-10 mr-3" />
-            <h1 className="text-3xl font-bold">Nobilis.Tech MES</h1>
+        <div className="min-h-screen bg-gray-50">
+          {/* Header */}
+          <header className="bg-white shadow-sm border-b">
+            <div className="max-w-7xl mx-auto px-4 py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center mr-3">
+                    <span className="text-white font-bold">N</span>
+                  </div>
+                  <h1 className="text-2xl font-bold text-gray-900">Nobilis.Tech MES</h1>
+                </div>
+                <div className="text-sm text-gray-500">
+                  Pharma Manufacturing Execution System
+                </div>
+              </div>
+            </div>
           </header>
 
-          {/* Navigation */}
-          <nav className="flex space-x-4 border-b pb-2 mb-6">
-            <button onClick={() => setActiveTab("dashboard")} className={activeTab === "dashboard" ? "font-bold text-blue-600" : ""}><Icons.Dashboard /> Dashboard</button>
-            <button onClick={() => setActiveTab("batches")} className={activeTab === "batches" ? "font-bold text-blue-600" : ""}><Icons.Batch /> Batches</button>
-            <button onClick={() => setActiveTab("templates")} className={activeTab === "templates" ? "font-bold text-blue-600" : ""}><Icons.Template /> eBR Templates</button>
-            <button onClick={() => setActiveTab("workflow")} className={activeTab === "workflow" ? "font-bold text-blue-600" : ""}><Icons.Workflow /> Workflow</button>
-          </nav>
-
-          {/* Dashboard */}
-          {activeTab === "dashboard" && (
-            <div>
-              <h2 className="text-xl font-semibold mb-4">📊 Production KPIs</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-white shadow rounded p-4 flex items-center">
-                  <span className="text-3xl mr-3">🧪</span>
-                  <div>
-                    <p className="text-sm text-gray-500">Active Batches</p>
-                    <p className="text-xl font-bold">{batches.filter(b => b.status !== "completed").length}</p>
-                  </div>
-                </div>
-                <div className="bg-white shadow rounded p-4 flex items-center">
-                  <span className="text-3xl mr-3">✅</span>
-                  <div>
-                    <p className="text-sm text-gray-500">Completed</p>
-                    <p className="text-xl font-bold">{batches.filter(b => b.status === "completed").length}</p>
-                  </div>
-                </div>
-                <div className="bg-white shadow rounded p-4 flex items-center">
-                  <span className="text-3xl mr-3">⚠️</span>
-                  <div>
-                    <p className="text-sm text-gray-500">Deviations</p>
-                    <p className="text-xl font-bold">{batches.filter(b => b.status === "deviation").length}</p>
-                  </div>
-                </div>
-                <div className="bg-white shadow rounded p-4 flex items-center">
-                  <span className="text-3xl mr-3">📋</span>
-                  <div>
-                    <p className="text-sm text-gray-500">Templates</p>
-                    <p className="text-xl font-bold">{templates.length}</p>
-                  </div>
-                </div>
+          <div className="max-w-7xl mx-auto px-4 py-6">
+            {/* Navigation */}
+            <nav className="bg-white rounded-lg shadow-sm mb-6">
+              <div className="flex space-x-8 px-6">
+                {[
+                  { key: "dashboard", label: "Dashboard", icon: Icons.Dashboard },
+                  { key: "batches", label: "Batches", icon: Icons.Batch },
+                  { key: "templates", label: "eBR Templates", icon: Icons.Template },
+                  { key: "workflow", label: "Workflow", icon: Icons.Workflow }
+                ].map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key)}
+                    className={`flex items-center space-x-2 py-4 px-2 border-b-2 transition-colors ${
+                      activeTab === tab.key
+                        ? "border-blue-500 text-blue-600"
+                        : "border-transparent text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    <tab.icon />
+                    <span>{tab.label}</span>
+                  </button>
+                ))}
               </div>
-            </div>
-          )}
+            </nav>
 
-          {/* Batches */}
-          {activeTab === "batches" && (
-            <div>
-              <h2 className="text-xl font-semibold mb-4">🧪 Batch Records</h2>
-              {batches.map(b => (
-                <div key={b.id} className="border p-3 mb-3 rounded bg-white shadow-sm">
-                  <div className="flex justify-between items-center mb-2">
-                    <div>
-                      <strong>{b.id}</strong> — {b.product}
-                      {b.deviation && <span className="text-red-600 ml-2">⚠️ {b.deviation}</span>}
-                    </div>
-                    <span className={`px-2 py-1 text-xs rounded ${
-                      b.status === "completed" ? "bg-green-100 text-green-700" :
-                      b.status === "in_progress" ? "bg-blue-100 text-blue-700" :
-                      "bg-red-100 text-red-700"
-                    }`}>
-                      {b.status}
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 h-2 my-2 rounded">
-                    <div className={`h-2 rounded ${
-                      b.status === "completed" ? "bg-green-500" :
-                      b.status === "in_progress" ? "bg-blue-500" :
-                      "bg-red-500"
-                    }`} style={{ width: `${b.progress}%` }}></div>
-                  </div>
-                  {b.status === "in_progress" && (
-                    <div className="flex space-x-2">
-                      <button className="bg-green-500 text-white px-3 py-1 rounded" onClick={() => completeStep(b.id)}>✅ Complete Step</button>
-                      <button className="bg-red-500 text-white px-3 py-1 rounded" onClick={() => reportDeviation(b.id)}>🚨 Report Deviation</button>
-                    </div>
-                  )}
+            {/* Content */}
+            {activeTab === "dashboard" && <Dashboard />}
+
+            {/* Batches Tab */}
+            {activeTab === "batches" && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold">🧪 Batch Records</h2>
+                  <button 
+                    onClick={() => setShowNewBatchForm(true)}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center space-x-2"
+                  >
+                    <Icons.Plus />
+                    <span>New Batch</span>
+                  </button>
                 </div>
-              ))}
-            </div>
-          )}
 
-          {/* Templates */}
-          {activeTab === "templates" && (
-            <div>
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold">📋 eBR Templates</h2>
-                <button className="bg-green-600 text-white px-3 py-1 rounded" onClick={addTemplate}><Icons.Plus /> Add Template</button>
-              </div>
-              {templates.map(t => (
-                <div key={t.id} className="border p-3 mb-3 rounded bg-white shadow-sm">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <strong>{t.name}</strong> (v{t.version}) — {t.status}
-                    </div>
-                  </div>
-                  <div className="mt-2">
-                    <button className="bg-blue-600 text-white px-2 py-1 rounded" onClick={() => addStep(t.id)}>➕ Add Step</button>
-                  </div>
-                  {t.steps.length > 0 && (
-                    <div className="mt-2 space-y-2">
-                      {t.steps.map(s => (
-                        <div key={s.id} className="border p-2 rounded bg-gray-50">
-                          <input
-                            className="border px-2 py-1 w-full mb-1"
-                            value={s.name}
-                            onChange={e => updateStep(t.id, s.id, "name", e.target.value)}
-                          />
-                          <input
-                            className="border px-2 py-1 w-full mb-1"
-                            placeholder="Parameter"
-                            value={s.param}
-                            onChange={e => updateStep(t.id, s.id, "param", e.target.value)}
-                          />
-                          <div className="flex space-x-2">
-                            <input className="border px-2 py-1 w-1/2" type="number" placeholder="Min" value={s.min || ""} onChange={e => updateStep(t.id, s.id, "min", e.target.value)} />
-                            <input className="border px-2 py-1 w-1/2" type="number" placeholder="Max" value={s.max || ""} onChange={e => updateStep(t.id, s.id, "max", e.target.value)} />
+                <div className="space-y-4">
+                  {batches.map(batch => (
+                    <div key={batch.id} className="bg-white border rounded-lg p-6">
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h3 className="text-lg font-semibold">{batch.id}</h3>
+                          <p className="text-gray-600">{batch.product}</p>
+                          <div className="text-sm text-gray-500 mt-1">
+                            Operator: {batch.operator} | Started: {batch.startDate} | Current: {batch.currentStep}
                           </div>
-                          <input
-                            className="border px-2 py-1 w-full mt-1"
-                            placeholder="Materials"
-                            value={s.materials?.join(", ") || ""}
-                            onChange={e => updateStep(t.id, s.id, "materials", e.target.value.split(","))}
-                          />
+                          {batch.deviation && (
+                            <div className="mt-2 p-2 bg-red-100 text-red-800 rounded">
+                              ⚠️ {batch.deviation}
+                            </div>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+                        <div className="text-right">
+                          <span className={`px-3 py-1 rounded-full text-sm ${
+                            batch.status === 'completed' ? 'bg-green-100 text-green-800' :
+                            batch.status === 'deviation' ? 'bg-red-100 text-red-800' :
+                            'bg-blue-100 text-blue-800'
+                          }`}>
+                            {batch.status}
+                          </span>
+                        </div>
+                      </div>
 
-          {/* Workflow */}
-          {activeTab === "workflow" && (
-            <div>
-              <h2 className="text-xl font-semibold mb-4">🔄 Workflow Execution</h2>
-              {workflow.map(s => (
-                <div key={s.id} className="border p-3 mb-2 rounded bg-white shadow-sm">
-                  <div className="flex justify-between items-center mb-2">
-                    <strong>
-                      {s.type === "instruction" && "📖 "}
-                      {s.type === "input" && "⌨️ "}
-                      {s.type === "control" && "⚙️ "}
-                      {s.name}
-                    </strong>
-                    <span className={`px-2 py-1 text-xs rounded ${
-                      s.status === "done" ? "bg-green-100 text-green-700" :
-                      s.status === "ok" ? "bg-green-200 text-green-800" :
-                      s.status === "blocked" ? "bg-red-100 text-red-700" :
-                      "bg-gray-100 text-gray-700"
-                    }`}>
-                      {s.status}
-                    </span>
-                  </div>
-                  {s.type === "instruction" && (
-                    <button className="bg-blue-500 text-white px-2 py-1 mt-2 rounded" onClick={() => updateWorkflowStep(s.id, "confirmed")}>Confirm</button>
-                  )}
-                  {s.type === "input" && (
-                    <input type="number" className="border px-2 py-1 mt-2 w-full"
-                      placeholder={s.param}
-                      onChange={e => updateWorkflowStep(s.id, parseFloat(e.target.value))}
-                    />
-                  )}
-                  {s.type === "control" && (
-                    <input type="number" className="border px-2 py-1 mt-2 w-full"
-                      placeholder={`${s.param} (${s.min}-${s.max})`}
-                      onChange={e => updateWorkflowStep(s.id, parseFloat(e.target.value))}
-                    />
-                  )}
+                      {/* Progress Bar */}
+                      <div className="mb-4">
+                        <div className="flex justify-between text-sm text-gray-600 mb-1">
+                          <span>Progress</span>
+                          <span>{batch.progress}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div 
+                            className="bg-blue-600 h-3 rounded-full transition-all duration-300"
+                            style={{ width: `${batch.progress}%` }}
+                          ></div>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      {batch.status === "in_progress" && (
+                        <div className="flex space-x-3">
+                          <button 
+                            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 flex items-center space-x-2"
+                            onClick={() => completeStep(batch.id)}
+                          >
+                            <Icons.Check />
+                            <span>Complete Step</span>
+                          </button>
+                          <button 
+                            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 flex items-center space-x-2"
+                            onClick={() => {
+                              const reason = prompt("Deviation reason:");
+                              if (reason) reportDeviation(batch.id, reason);
+                            }}
+                          >
+                            <Icons.Alert />
+                            <span>Report Deviation</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            )}
+
+            {/* Templates Tab */}
+            {activeTab === "templates" && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold">📋 eBR Templates</h2>
+                  <button 
+                    onClick={addTemplate}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center space-x-2"
+                  >
+                    <Icons.Plus />
+                    <span>New Template</span>
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {templates.map(template => (
+                    <div key={template.id} className="bg-white border rounded-lg">
+                      <div className="p-6 border-b">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-4 mb-2">
+                              <input
+                                className="text-lg font-semibold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none"
+                                value={template.name}
+                                onChange={(e) => updateTemplate(template.id, 'name', e.target.value)}
+                              />
+                              <input
+                                className="text-sm bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none w-16"
+                                value={template.version}
+                                onChange={(e) => updateTemplate(template.id, 'version', e.target.value)}
+                              />
+                            </div>
+                            <div className="flex items-center space-x-4 text-sm text-gray-600">
+                              <span>Created: {template.createdDate}</span>
+                              <select
+                                value={template.status}
+                                onChange={(e) => updateTemplate(template.id, 'status', e.target.value)}
+                                className="border rounded px-2 py-1"
+                              >
+                                <option value="draft">Draft</option>
+                                <option value="review">Review</option>
+                                <option value="approved">Approved</option>
+                                <option value="archived">Archived</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => cloneTemplate(template.id)}
+                              className="p-2 text-blue-600 hover:bg-blue-100 rounded"
+                              title="Clone Template"
+                            >
+                              <Icons.Copy />
+                            </button>
+                            <button
+                              onClick={() => setSelectedTemplate(selectedTemplate === template.id ? null : template.id)}
+                              className="p-2 text-gray-600 hover:bg-gray-100 rounded"
+                              title="Edit Template"
+                            >
+                              <Icons.Edit />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {selectedTemplate === template.id && (
+                        <div className="p-6 space-y-6">
+                          {/* BOM Section */}
+                          <div>
+                            <div className="flex justify-between items-center mb-3">
+                              <h4 className="text-md font-semibold">📦 Bill of Materials</h4>
+                              <button
+                                onClick={() => addBomItem(template.id)}
+                                className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                              >
+                                Add Item
+                              </button>
+                            </div>
+                            <div className="space-y-2">
+                              {template.bom?.map(item => (
+                                <div key={item.id} className="grid grid-cols-4 gap-3 p-3 border rounded">
+                                  <input
+                                    className="border px-2 py-1 rounded"
+                                    placeholder="Material name"
+                                    value={item.item}
+                                    onChange={(e) => updateBomItem(template.id, item.id, 'item', e.target.value)}
+                                  />
+                                  <div className="flex space-x-1">
+                                    <input
+                                      type="number"
+                                      className="border px-2 py-1 rounded flex-1"
+                                      placeholder="Qty"
+                                      value={item.quantity}
+                                      onChange={(e) => updateBomItem(template.id, item.id, 'quantity', e.target.value)}
+                                    />
+                                    <input
+                                      className="border px-2 py-1 rounded w-16"
+                                      placeholder="Unit"
+                                      value={item.unit}
+                                      onChange={(e) => updateBomItem(template.id, item.id, 'unit', e.target.value)}
+                                    />
+                                  </div>
+                                  <input
+                                    className="border px-2 py-1 rounded"
+                                    placeholder="Lot Number"
+                                    value={item.lotNumber}
+                                    onChange={(e) => updateBomItem(template.id, item.id, 'lotNumber', e.target.value)}
+                                  />
+                                  <button
+                                    onClick={() => setTemplates(prev => prev.map(t =>
+                                      t.id === template.id
+                                        ? { ...t, bom: t.bom.filter(b => b.id !== item.id) }
+                                        : t
+                                    ))}
+                                    className="p-1 text-red-600 hover:bg-red-100 rounded"
+                                  >
+                                    <Icons.Trash />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Steps Section */}
+                          <div>
+                            <div className="flex justify-between items-center mb-3">
+                              <h4 className="text-md font-semibold">🔄 Process Steps</h4>
+                              <button
+                                onClick={() => addStep(template.id)}
+                                className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                              >
+                                Add Step
+                              </button>
+                            </div>
+                            <div className="space-y-3">
+                              {template.steps?.map((step, index) => (
+                                <div key={step.id} className="border rounded p-4 bg-gray-50">
+                                  <div className="grid grid-cols-2 gap-3 mb-3">
+                                    <div>
+                                      <label className="block text-xs text-gray-600 mb-1">Step Name</label>
+                                      <input
+                                        className="w-full border px-2 py-1 rounded"
+                                        value={step.name}
+                                        onChange={(e) => updateStep(template.id, step.id, "name", e.target.value)}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs text-gray-600 mb-1">Type</label>
+                                      <select
+                                        className="w-full border px-2 py-1 rounded"
+                                        value={step.type}
+                                        onChange={(e) => updateStep(template.id, step.id, "type", e.target.value)}
+                                      >
+                                        <option value="instruction">Instruction</option>
+                                        <option value="input">Data Input</option>
+                                        <option value="control">Quality Control</option>
+                                      </select>
+                                    </div>
+                                  </div>
+
+                                  {(step.type === "input" || step.type === "control") && (
+                                    <div className="grid grid-cols-4 gap-2 mb-3">
+                                      <div>
+                                        <label className="block text-xs text-gray-600 mb-1">Parameter</label>
+                                        <input
+                                          className="w-full border px-2 py-1 rounded"
+                                          placeholder="Parameter name"
+                                          value={step.param}
+                                          onChange={(e) => updateStep(template.id, step.id, "param", e.target.value)}
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs text-gray-600 mb-1">Min Value</label>
+                                        <input
+                                          type="number"
+                                          className="w-full border px-2 py-1 rounded"
+                                          value={step.min || ""}
+                                          onChange={(e) => updateStep(template.id, step.id, "min", parseFloat(e.target.value))}
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs text-gray-600 mb-1">Max Value</label>
+                                        <input
+                                          type="number"
+                                          className="w-full border px-2 py-1 rounded"
+                                          value={step.max || ""}
+                                          onChange={(e) => updateStep(template.id, step.id, "max", parseFloat(e.target.value))}
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs text-gray-600 mb-1">Unit</label>
+                                        <input
+                                          className="w-full border px-2 py-1 rounded"
+                                          placeholder="Unit"
+                                          value={step.unit || ""}
+                                          onChange={(e) => updateStep(template.id, step.id, "unit", e.target.value)}
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  <div className="mb-3">
+                                    <label className="block text-xs text-gray-600 mb-1">Instructions</label>
+                                    <textarea
+                                      className="w-full border px-2 py-1 rounded"
+                                      rows="2"
+                                      placeholder="Detailed instructions for this step..."
+                                      value={step.instruction || ""}
+                                      onChange={(e) => updateStep(template.id, step.id, "instruction", e.target.value)}
+                                    />
+                                  </div>
+
+                                  <div className="flex justify-between items-center">
+                                    <div className="flex-1">
+                                      <label className="block text-xs text-gray-600 mb-1">Required Materials</label>
+                                      <input
+                                        className="w-full border px-2 py-1 rounded"
+                                        placeholder="Material 1, Material 2, ..."
+                                        value={step.materials?.join(", ") || ""}
+                                        onChange={(e) => updateStep(template.id, step.id, "materials", e.target.value.split(",").map(m => m.trim()).filter(m => m))}
+                                      />
+                                    </div>
+                                    <button
+                                      onClick={() => setTemplates(prev => prev.map(t =>
+                                        t.id === template.id
+                                          ? { ...t, steps: t.steps.filter(s => s.id !== step.id) }
+                                          : t
+                                      ))}
+                                      className="ml-3 p-2 text-red-600 hover:bg-red-100 rounded"
+                                    >
+                                      <Icons.Trash />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Workflow Tab */}
+            {activeTab === "workflow" && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold">🔄 Workflow Execution</h2>
+                  <div className="text-sm text-gray-600">
+                    Current Batch: BR-2024-001 | Operator: John Doe
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {workflow.map((step, index) => (
+                    <div key={step.id} className="bg-white border rounded-lg p-6">
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h3 className="text-lg font-semibold flex items-center space-x-2">
+                            <span className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm ${
+                              step.status === 'completed' || step.status === 'passed' ? 'bg-green-500' :
+                              step.status === 'failed' ? 'bg-red-500' :
+                              'bg-gray-400'
+                            }`}>
+                              {index + 1}
+                            </span>
+                            <span>{step.name}</span>
+                          </h3>
+                          {step.param && (
+                            <p className="text-gray-600 ml-10">
+                              Parameter: {step.param} 
+                              {step.min !== null && step.max !== null && (
+                                <span className="text-sm"> ({step.min} - {step.max})</span>
+                              )}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <span className={`px-3 py-1 rounded-full text-sm ${
+                            step.status === 'completed' ? 'bg-green-100 text-green-800' :
+                            step.status === 'passed' ? 'bg-green-100 text-green-800' :
+                            step.status === 'failed' ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {step.status}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Step Execution */}
+                      {step.status === 'pending' && (
+                        <div className="space-y-3">
+                          {step.type === "instruction" && (
+                            <div>
+                              <p className="text-gray-700 mb-3">Please confirm completion of this instruction step.</p>
+                              <button
+                                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                                onClick={() => updateWorkflowStep(step.id, "confirmed")}
+                              >
+                                ✅ Confirm Completion
+                              </button>
+                            </div>
+                          )}
+
+                          {(step.type === "input" || step.type === "control") && (
+                            <div>
+                              <label className="block text-sm font-medium mb-2">
+                                Enter {step.param}:
+                              </label>
+                              <div className="flex space-x-3">
+                                <input
+                                  type="number"
+                                  className="border px-3 py-2 rounded flex-1"
+                                  placeholder={`${step.param} value`}
+                                  onKeyPress={(e) => {
+                                    if (e.key === 'Enter') {
+                                      updateWorkflowStep(step.id, parseFloat(e.target.value));
+                                      e.target.value = '';
+                                    }
+                                  }}
+                                />
+                                <button
+                                  className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                                  onClick={(e) => {
+                                    const input = e.target.parentElement.querySelector('input');
+                                    if (input.value) {
+                                      updateWorkflowStep(step.id, parseFloat(input.value));
+                                      input.value = '';
+                                    }
+                                  }}
+                                >
+                                  Submit
+                                </button>
+                              </div>
+                              {step.type === "control" && (
+                                <p className="text-sm text-gray-600 mt-1">
+                                  Acceptable range: {step.min} - {step.max}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Completed Step Info */}
+                      {step.status !== 'pending' && (
+                        <div className="bg-gray-50 p-3 rounded">
+                          <div className="grid grid-cols-3 gap-4 text-sm">
+                            <div>
+                              <span className="font-medium">Value:</span> {step.value || "N/A"}
+                            </div>
+                            <div>
+                              <span className="font-medium">Operator:</span> {step.operator || "N/A"}
+                            </div>
+                            <div>
+                              <span className="font-medium">Timestamp:</span> {step.timestamp || "N/A"}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Workflow Summary */}
+                <div className="bg-white border rounded-lg p-6">
+                  <h3 className="text-lg font-semibold mb-4">Workflow Summary</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-gray-800">
+                        {workflow.filter(s => s.status === 'completed' || s.status === 'passed').length}
+                      </div>
+                      <div className="text-sm text-gray-600">Completed</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-blue-600">
+                        {workflow.filter(s => s.status === 'pending').length}
+                      </div>
+                      <div className="text-sm text-gray-600">Pending</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-red-600">
+                        {workflow.filter(s => s.status === 'failed').length}
+                      </div>
+                      <div className="text-sm text-gray-600">Failed</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-600">
+                        {Math.round((workflow.filter(s => s.status === 'completed' || s.status === 'passed').length / workflow.length) * 100)}%
+                      </div>
+                      <div className="text-sm text-gray-600">Progress</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Modal for New Batch Form */}
+          {showNewBatchForm && <NewBatchForm />}
         </div>
       );
     }
 
-    // Render
+    // Render App
     const root = ReactDOM.createRoot(document.getElementById("root"));
     root.render(<App />);
   </script>
