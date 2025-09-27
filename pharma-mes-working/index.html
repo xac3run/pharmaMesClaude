@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Pharmaceutical MES System - React Fixed</title>
+  <title>Нобилис.Тех MES</title>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -15,178 +15,142 @@
   <script type="text/babel">
     const { useState, useEffect } = React;
 
-    const Icons = {
-      Plus: () => <span>➕</span>,
-      Settings: () => <span>⚙️</span>,
-      Copy: () => <span>📋</span>,
-      Play: () => <span>▶️</span>,
-      Database: () => <span>📊</span>,
-      CheckCircle: () => <span>✅</span>,
-      AlertTriangle: () => <span>⚠️</span>,
-      Eye: () => <span>👁️</span>,
-      FileText: () => <span>📄</span>
-    };
-
     const PharmaceuticalMES = () => {
       const [activeTab, setActiveTab] = useState("dashboard");
       const [currentTime, setCurrentTime] = useState(new Date());
       const [isLoading, setIsLoading] = useState(true);
 
+      // === Demo Data ===
       const [batches, setBatches] = useState([
-        { id: "BR-2024-001", product: "Aspirin 325mg Tablets", status: "in_progress", progress: 65, operator: "John Smith", currentStep: "Tablet Weight Check" },
-        { id: "BR-2024-002", product: "Paracetamol 500mg Tablets", status: "completed", progress: 100, operator: "Maria Garcia" },
-        { id: "BR-2024-003", product: "Ibuprofen 200mg Capsules", status: "deviation", progress: 45, operator: "Alex Johnson", deviation: "Temperature exceeded limits" }
+        { id: "BR-2024-001", product: "Aspirin 325mg Tablets", status: "in_progress", progress: 65 },
+        { id: "BR-2024-002", product: "Paracetamol 500mg Tablets", status: "completed", progress: 100 },
+        { id: "BR-2024-003", product: "Ibuprofen 200mg Capsules", status: "deviation", progress: 45, deviation: "Temp exceeded" }
       ]);
 
       const [templates, setTemplates] = useState([
-        { id: 1, name: "Aspirin 325mg - Tableting Process", version: "1.2", status: "approved", steps: 3 },
-        { id: 2, name: "Paracetamol 500mg - Coating Process", version: "2.1", status: "draft", steps: 5 },
-        { id: 3, name: "Ibuprofen 200mg - Encapsulation", version: "1.0", status: "review", steps: 4 }
+        { id: 1, name: "Aspirin 325mg - Tableting", productId: "PRD-001", version: "1.2", status: "approved", author: "QA1", createdAt: "2024-09-01", processType: "Таблетирование", steps: [], params: [], materials: [], attachments: [], history: [] }
       ]);
 
-      // modal state
-      const [editingTemplate, setEditingTemplate] = useState(null);
       const [modalOpen, setModalOpen] = useState(false);
+      const [editingTemplate, setEditingTemplate] = useState(null);
+      const [configTab, setConfigTab] = useState("meta");
 
       useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-        setTimeout(() => setIsLoading(false), 1500);
+        setTimeout(() => setIsLoading(false), 1200);
         return () => clearInterval(timer);
       }, []);
 
       // === Batches logic ===
-      const completeStep = (batchId) => {
-        setBatches(prev =>
-          prev.map(b =>
-            b.id === batchId
-              ? { ...b, progress: Math.min(b.progress + 20, 100), status: b.progress + 20 >= 100 ? "completed" : "in_progress" }
-              : b
-          )
-        );
+      const completeStep = (id) => {
+        setBatches(prev => prev.map(b => b.id===id ? {...b, progress:Math.min(b.progress+20,100), status:b.progress+20>=100?"completed":"in_progress"}:b));
       };
-
-      const reportDeviation = (batchId) => {
-        setBatches(prev =>
-          prev.map(b => (b.id === batchId ? { ...b, status: "deviation", deviation: "Manual deviation" } : b))
-        );
+      const reportDeviation = (id) => {
+        setBatches(prev => prev.map(b => b.id===id ? {...b, status:"deviation", deviation:"Manual deviation"}:b));
       };
-
-      const approveDeviation = (batchId) => {
-        setBatches(prev =>
-          prev.map(b => (b.id === batchId ? { ...b, status: "in_progress", deviation: null } : b))
-        );
+      const approveDeviation = (id) => {
+        setBatches(prev => prev.map(b => b.id===id ? {...b, status:"in_progress", deviation:null}:b));
       };
 
       // === Templates logic ===
       const createTemplate = () => {
-        const newTemplate = { id: templates.length + 1, name: `New Template ${templates.length + 1}`, version: "0.1", status: "draft", steps: 1 };
-        setTemplates([...templates, newTemplate]);
+        const newT = {
+          id: templates.length+1,
+          name: `New Template ${templates.length+1}`,
+          productId: `PRD-${100+templates.length}`,
+          version: "0.1",
+          status: "draft",
+          author: "QA",
+          createdAt: new Date().toISOString().split("T")[0],
+          processType: "",
+          steps: [],
+          params: [],
+          materials: [],
+          attachments: [],
+          history: []
+        };
+        setTemplates([...templates,newT]);
       };
-
-      const configureTemplate = (template) => {
-        setEditingTemplate({ ...template });
+      const configureTemplate = (t) => {
+        setEditingTemplate({...t});
+        setConfigTab("meta");
         setModalOpen(true);
       };
-
       const saveTemplate = () => {
-        setTemplates(prev => prev.map(t => (t.id === editingTemplate.id ? editingTemplate : t)));
+        setTemplates(prev=>prev.map(t=>t.id===editingTemplate.id?editingTemplate:t));
         setModalOpen(false);
       };
 
-      const copyTemplate = (template) => {
-        const copy = { ...template, id: templates.length + 1, name: `${template.name} (Copy)`, status: "draft" };
-        setTemplates([...templates, copy]);
+      const addStep = () => {
+        setEditingTemplate({...editingTemplate, steps:[...editingTemplate.steps,{id:Date.now(), type:"instruction", name:"Новый шаг"}]});
+      };
+      const addParam = () => {
+        setEditingTemplate({...editingTemplate, params:[...editingTemplate.params,{id:Date.now(), name:"Temp", min:20, max:25}]});
+      };
+      const addMaterial = () => {
+        setEditingTemplate({...editingTemplate, materials:[...editingTemplate.materials,{id:Date.now(), name:"Lactose", qty:"10kg"}]});
+      };
+      const addAttachment = () => {
+        setEditingTemplate({...editingTemplate, attachments:[...editingTemplate.attachments,{id:Date.now(), type:"PDF", name:"SOP-123"}]});
+      };
+      const approveTemplate = () => {
+        setEditingTemplate({...editingTemplate, status:"approved"});
       };
 
-      const startBatchFromTemplate = (template) => {
-        alert(`▶️ Starting batch from "${template.name}"`);
-      };
-
-      if (isLoading) return <div className="flex h-screen items-center justify-center">Loading...</div>;
+      if(isLoading) return <div className="flex h-screen items-center justify-center">Loading...</div>;
 
       return (
         <div className="p-6 max-w-7xl mx-auto">
-          {/* Company Branding */}
-          <div className="flex items-center justify-between mb-8">
+          {/* Header */}
+          <div className="flex justify-between mb-6">
             <div className="flex items-center">
-              <img src="assets/logo.svg" alt="Нобилис.Тех Logo" className="h-14 w-14 mr-4"/>
+              <img src="assets/logo.svg" className="h-12 w-12 mr-4"/>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">Нобилис.Тех</h1>
-                <p className="text-gray-600">Pharmaceutical MES Platform</p>
+                <h1 className="text-2xl font-bold">Нобилис.Тех MES</h1>
+                <p className="text-gray-600">Pharmaceutical eBR Platform</p>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-sm text-gray-500">{currentTime.toLocaleDateString()} {currentTime.toLocaleTimeString()}</div>
-              <div className="text-sm text-green-600 font-medium">● React System Online</div>
-            </div>
+            <div className="text-sm text-gray-500">{currentTime.toLocaleString()}</div>
           </div>
 
           {/* Tabs */}
-          <div className="mb-6 flex gap-4 border-b pb-2">
-            <button onClick={() => setActiveTab("dashboard")}>📊 Dashboard</button>
-            <button onClick={() => setActiveTab("batches")}>🧪 Batches</button>
-            <button onClick={() => setActiveTab("templates")}>📋 eBR Templates</button>
+          <div className="mb-4 flex gap-6 border-b pb-2">
+            <button onClick={()=>setActiveTab("dashboard")}>📊 Dashboard</button>
+            <button onClick={()=>setActiveTab("batches")}>🧪 Batches</button>
+            <button onClick={()=>setActiveTab("templates")}>📋 eBR Templates</button>
           </div>
 
-          {/* === Dashboard === */}
-          {activeTab === "dashboard" && (
+          {/* Dashboard */}
+          {activeTab==="dashboard" && (
             <div>
               <h2 className="text-xl font-bold mb-4">📊 Production KPIs</h2>
-              <p>Active Batches: {batches.filter(b => b.status !== "completed").length}</p>
-              <p>Completed: {batches.filter(b => b.status === "completed").length}</p>
-              <p>Deviations: {batches.filter(b => b.status === "deviation").length}</p>
+              <p>Active Batches: {batches.filter(b=>b.status!=="completed").length}</p>
+              <p>Completed: {batches.filter(b=>b.status==="completed").length}</p>
+              <p>Deviations: {batches.filter(b=>b.status==="deviation").length}</p>
               <p>Templates: {templates.length}</p>
-              <p className="text-sm text-gray-500 mt-2">⏰ {currentTime.toLocaleTimeString()}</p>
             </div>
           )}
 
-          {/* === Batches === */}
-          {activeTab === "batches" && (
+          {/* Batches */}
+          {activeTab==="batches" && (
             <div>
               <h2 className="text-xl font-bold mb-4">🧪 Batches</h2>
-              {batches.map(b => (
-                <div key={b.id} className="border p-4 mb-2 rounded">
-                  <div className="flex justify-between">
-                    <div>
-                      <p className="font-semibold">{b.id} — {b.product}</p>
-                      <p className="text-sm">Progress: {b.progress}%</p>
-                      {b.deviation && <p className="text-red-600">Deviation: {b.deviation}</p>}
-                    </div>
-                    <div className="flex gap-2">
-                      {b.status === "in_progress" && (
-                        <>
-                          <button onClick={() => completeStep(b.id)} className="px-2 py-1 bg-green-600 text-white rounded">Complete</button>
-                          <button onClick={() => reportDeviation(b.id)} className="px-2 py-1 bg-red-600 text-white rounded">Deviation</button>
-                        </>
-                      )}
-                      {b.status === "deviation" && (
-                        <button onClick={() => approveDeviation(b.id)} className="px-2 py-1 bg-blue-600 text-white rounded">Approve</button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* === Templates === */}
-          {activeTab === "templates" && (
-            <div>
-              <div className="flex justify-between mb-4">
-                <h2 className="text-xl font-bold">📋 Templates</h2>
-                <button onClick={createTemplate} className="px-3 py-1 bg-green-600 text-white rounded">➕ Create</button>
-              </div>
-              {templates.map(t => (
-                <div key={t.id} className="border p-4 mb-2 rounded flex justify-between">
+              {batches.map(b=>(
+                <div key={b.id} className="border p-3 mb-2 rounded flex justify-between">
                   <div>
-                    <p className="font-semibold">{t.name}</p>
-                    <p className="text-sm text-gray-500">v{t.version} • {t.steps} steps</p>
+                    <p className="font-semibold">{b.id} — {b.product}</p>
+                    <p className="text-sm">Progress: {b.progress}%</p>
+                    {b.deviation && <p className="text-red-600">Deviation: {b.deviation}</p>}
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => configureTemplate(t)} className="px-2 py-1 bg-blue-600 text-white rounded">⚙️ Configure</button>
-                    <button onClick={() => copyTemplate(t)} className="px-2 py-1 bg-gray-600 text-white rounded">📋 Copy</button>
-                    {t.status === "approved" && (
-                      <button onClick={() => startBatchFromTemplate(t)} className="px-2 py-1 bg-green-600 text-white rounded">▶️ Start</button>
+                    {b.status==="in_progress" && (
+                      <>
+                        <button onClick={()=>completeStep(b.id)} className="px-2 py-1 bg-green-600 text-white">Complete</button>
+                        <button onClick={()=>reportDeviation(b.id)} className="px-2 py-1 bg-red-600 text-white">Deviation</button>
+                      </>
+                    )}
+                    {b.status==="deviation" && (
+                      <button onClick={()=>approveDeviation(b.id)} className="px-2 py-1 bg-blue-600 text-white">Approve</button>
                     )}
                   </div>
                 </div>
@@ -194,22 +158,112 @@
             </div>
           )}
 
-          {/* Modal for Configure */}
+          {/* Templates */}
+          {activeTab==="templates" && (
+            <div>
+              <div className="flex justify-between mb-4">
+                <h2 className="text-xl font-bold">📋 eBR Templates</h2>
+                <button onClick={createTemplate} className="px-3 py-1 bg-green-600 text-white">➕ New</button>
+              </div>
+              {templates.map(t=>(
+                <div key={t.id} className="border p-3 mb-2 rounded flex justify-between">
+                  <div>
+                    <p className="font-semibold">{t.name}</p>
+                    <p className="text-sm">v{t.version} • {t.status} • {t.processType||"—"}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={()=>configureTemplate(t)} className="px-2 py-1 bg-blue-600 text-white">⚙️ Configure</button>
+                    {t.status==="approved" && (
+                      <button className="px-2 py-1 bg-green-600 text-white">▶️ Start Batch</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Modal Configurator */}
           {modalOpen && editingTemplate && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-              <div className="bg-white p-6 rounded shadow-lg w-96">
-                <h3 className="text-lg font-semibold mb-4">⚙️ Configure Template</h3>
-                <label className="block mb-2 text-sm font-medium">Name</label>
-                <input type="text" value={editingTemplate.name}
-                       onChange={(e)=>setEditingTemplate({...editingTemplate, name:e.target.value})}
-                       className="w-full border rounded p-2 mb-4"/>
-                <label className="block mb-2 text-sm font-medium">Version</label>
-                <input type="text" value={editingTemplate.version}
-                       onChange={(e)=>setEditingTemplate({...editingTemplate, version:e.target.value})}
-                       className="w-full border rounded p-2 mb-4"/>
-                <div className="flex justify-end gap-2">
-                  <button onClick={()=>setModalOpen(false)} className="px-4 py-2 bg-gray-300 rounded">Cancel</button>
-                  <button onClick={saveTemplate} className="px-4 py-2 bg-blue-600 text-white rounded">Save</button>
+            <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+              <div className="bg-white p-6 rounded w-[700px] max-h-[90vh] overflow-y-auto">
+                <h3 className="text-lg font-bold mb-4">⚙️ Configure Template: {editingTemplate.name}</h3>
+
+                {/* Tabs inside modal */}
+                <div className="flex gap-3 border-b mb-4 pb-2">
+                  <button onClick={()=>setConfigTab("meta")}>Основное</button>
+                  <button onClick={()=>setConfigTab("steps")}>Шаги</button>
+                  <button onClick={()=>setConfigTab("params")}>Параметры</button>
+                  <button onClick={()=>setConfigTab("materials")}>Материалы</button>
+                  <button onClick={()=>setConfigTab("attachments")}>Вложения</button>
+                  <button onClick={()=>setConfigTab("audit")}>Аудит</button>
+                  <button onClick={()=>setConfigTab("approval")}>Утверждение</button>
+                </div>
+
+                {configTab==="meta" && (
+                  <div>
+                    <label className="block">Название</label>
+                    <input value={editingTemplate.name} onChange={e=>setEditingTemplate({...editingTemplate,name:e.target.value})} className="border p-1 w-full mb-2"/>
+                    <label className="block">Тип процесса</label>
+                    <select value={editingTemplate.processType} onChange={e=>setEditingTemplate({...editingTemplate,processType:e.target.value})} className="border p-1 w-full mb-2">
+                      <option value="">—</option>
+                      <option>Таблетирование</option>
+                      <option>Фасовка</option>
+                      <option>Стерилизация</option>
+                    </select>
+                    <p>ID продукта: {editingTemplate.productId}</p>
+                    <p>Автор: {editingTemplate.author}</p>
+                    <p>Дата: {editingTemplate.createdAt}</p>
+                    <p>Статус: {editingTemplate.status}</p>
+                  </div>
+                )}
+
+                {configTab==="steps" && (
+                  <div>
+                    <button onClick={addStep} className="mb-2 px-2 py-1 bg-green-600 text-white">+ Шаг</button>
+                    {editingTemplate.steps.map(s=><p key={s.id}>• {s.name} ({s.type})</p>)}
+                  </div>
+                )}
+
+                {configTab==="params" && (
+                  <div>
+                    <button onClick={addParam} className="mb-2 px-2 py-1 bg-green-600 text-white">+ Параметр</button>
+                    {editingTemplate.params.map(p=><p key={p.id}>{p.name}: {p.min}–{p.max}</p>)}
+                  </div>
+                )}
+
+                {configTab==="materials" && (
+                  <div>
+                    <button onClick={addMaterial} className="mb-2 px-2 py-1 bg-green-600 text-white">+ Материал</button>
+                    {editingTemplate.materials.map(m=><p key={m.id}>{m.name} ({m.qty})</p>)}
+                  </div>
+                )}
+
+                {configTab==="attachments" && (
+                  <div>
+                    <button onClick={addAttachment} className="mb-2 px-2 py-1 bg-green-600 text-white">+ Вложение</button>
+                    {editingTemplate.attachments.map(a=><p key={a.id}>{a.type}: {a.name}</p>)}
+                  </div>
+                )}
+
+                {configTab==="audit" && (
+                  <div>
+                    <p>История версий:</p>
+                    {editingTemplate.history.length===0 && <p>— пусто —</p>}
+                  </div>
+                )}
+
+                {configTab==="approval" && (
+                  <div>
+                    <p>Текущий статус: {editingTemplate.status}</p>
+                    {editingTemplate.status!=="approved" && (
+                      <button onClick={approveTemplate} className="mt-2 px-3 py-1 bg-blue-600 text-white">✅ Approve</button>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 mt-6">
+                  <button onClick={()=>setModalOpen(false)} className="px-4 py-2 bg-gray-300">Cancel</button>
+                  <button onClick={saveTemplate} className="px-4 py-2 bg-green-600 text-white">Save</button>
                 </div>
               </div>
             </div>
