@@ -1,308 +1,268 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Nobilis.Tech MES</title>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-50">
+<body>
   <div id="root"></div>
 
   <script type="text/babel">
     const { useState } = React;
 
-    // ----------------------------
-    // Components
-    // ----------------------------
-    const NavButton = ({ tab, activeTab, setActiveTab, icon, label }) => (
-      <button
-        onClick={() => setActiveTab(tab)}
-        className={`px-6 py-3 font-medium border-b-2 transition-colors ${
-          activeTab === tab
-            ? "border-blue-500 text-blue-600"
-            : "border-transparent text-gray-500 hover:text-gray-700"
-        }`}
-      >
-        {icon} {label}
-      </button>
-    );
-
-    const StepRow = ({ step, onUpdate, onRemove, onAddMaterial }) => {
-      const handleChange = (field, value) => {
-        onUpdate({ ...step, [field]: value });
-      };
-
-      return (
-        <div className="border p-4 rounded-lg mb-2 bg-gray-50">
-          <div className="flex items-center mb-2 gap-2">
-            <input
-              type="text"
-              value={step.name}
-              onChange={(e) => handleChange("name", e.target.value)}
-              className="flex-1 border p-2 rounded text-sm"
-              placeholder="Step name"
-            />
-            <select
-              value={step.type}
-              onChange={(e) => handleChange("type", e.target.value)}
-              className="border p-2 rounded text-sm"
-            >
-              <option>Instruction</option>
-              <option>Data Entry</option>
-              <option>Control</option>
-              <option>CCP</option>
-              <option>Pause</option>
-            </select>
-            <button
-              onClick={onRemove}
-              className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
-            >
-              ✖
-            </button>
-          </div>
-          {/* Parameters */}
-          <div className="flex gap-2 mb-2">
-            <input
-              type="number"
-              value={step.min || ""}
-              onChange={(e) => handleChange("min", e.target.value)}
-              className="border p-2 rounded text-sm w-24"
-              placeholder="Min"
-            />
-            <input
-              type="number"
-              value={step.max || ""}
-              onChange={(e) => handleChange("max", e.target.value)}
-              className="border p-2 rounded text-sm w-24"
-              placeholder="Max"
-            />
-          </div>
-          {/* Materials */}
-          <div>
-            <h4 className="font-medium text-sm mb-1">Materials</h4>
-            {step.materials.map((m, i) => (
-              <div key={i} className="flex gap-2 mb-1">
-                <input
-                  type="text"
-                  value={m.id}
-                  onChange={(e) => {
-                    const newM = [...step.materials];
-                    newM[i].id = e.target.value;
-                    handleChange("materials", newM);
-                  }}
-                  className="border p-2 rounded text-sm flex-1"
-                  placeholder="Material ID"
-                />
-                <select
-                  value={m.status}
-                  onChange={(e) => {
-                    const newM = [...step.materials];
-                    newM[i].status = e.target.value;
-                    handleChange("materials", newM);
-                  }}
-                  className="border p-2 rounded text-sm"
-                >
-                  <option>valid</option>
-                  <option>quarantine</option>
-                  <option>blocked</option>
-                </select>
-              </div>
-            ))}
-            <button
-              onClick={onAddMaterial}
-              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-            >
-              ➕ Add Material
-            </button>
-          </div>
-        </div>
-      );
+    // Простые иконки через emoji
+    const Icons = {
+      Dashboard: () => <span>📊</span>,
+      Batch: () => <span>🧪</span>,
+      Template: () => <span>📋</span>,
+      Workflow: () => <span>🔄</span>,
+      Plus: () => <span>➕</span>,
+      Edit: () => <span>✏️</span>,
+      Save: () => <span>💾</span>,
+      Trash: () => <span>🗑️</span>,
+      Check: () => <span>✅</span>,
+      Alert: () => <span>⚠️</span>,
+      User: () => <span>👤</span>,
+      Materials: () => <span>📦</span>
     };
 
-    // ----------------------------
+    // ---------------------------
     // Main App
-    // ----------------------------
-    const App = () => {
+    // ---------------------------
+    function App() {
       const [activeTab, setActiveTab] = useState("dashboard");
-      const [templates, setTemplates] = useState([
-        {
-          id: 1,
-          name: "Aspirin 325mg - Tableting",
-          steps: [
-            { name: "Weighing", type: "Data Entry", min: 100, max: 110, materials: [] },
-          ],
-        },
+      const [batches, setBatches] = useState([
+        { id: "BR-2024-001", product: "Aspirin 325mg", status: "in_progress", progress: 65 },
+        { id: "BR-2024-002", product: "Paracetamol 500mg", status: "completed", progress: 100 },
+        { id: "BR-2024-003", product: "Ibuprofen 200mg", status: "deviation", progress: 45, deviation: "Temp exceeded" }
       ]);
-      const [auditLog, setAuditLog] = useState([]);
 
-      const logAction = (msg) => {
-        setAuditLog((prev) => [
-          { ts: new Date().toLocaleString(), msg },
-          ...prev,
-        ]);
+      const [templates, setTemplates] = useState([
+        { id: 1, name: "Aspirin 325mg - Tableting", version: "1.0", status: "approved", steps: [] },
+        { id: 2, name: "Paracetamol 500mg - Coating", version: "1.1", status: "draft", steps: [] }
+      ]);
+
+      const [workflow, setWorkflow] = useState([
+        { id: 1, name: "Weighing", type: "input", param: "Weight", min: 320, max: 330, value: null, status: "pending" },
+        { id: 2, name: "Compression", type: "instruction", status: "pending" },
+        { id: 3, name: "Visual QC", type: "control", param: "Defects", min: 0, max: 5, value: null, status: "pending" }
+      ]);
+
+      // ---------------------------
+      // Batches logic
+      // ---------------------------
+      const completeStep = (id) => {
+        setBatches(prev => prev.map(b => b.id === id
+          ? { ...b, progress: Math.min(b.progress + 30, 100), status: b.progress + 30 >= 100 ? "completed" : "in_progress" }
+          : b
+        ));
       };
 
-      const addStep = (templateId) => {
-        setTemplates((prev) =>
-          prev.map((t) =>
-            t.id === templateId
-              ? {
-                  ...t,
-                  steps: [...t.steps, { name: "New Step", type: "Instruction", materials: [] }],
-                }
-              : t
-          )
-        );
-        logAction(`➕ Added step to template ${templateId}`);
+      const reportDeviation = (id) => {
+        setBatches(prev => prev.map(b => b.id === id
+          ? { ...b, status: "deviation", deviation: "Manual deviation reported" }
+          : b
+        ));
       };
 
-      const updateStep = (templateId, index, newStep) => {
-        setTemplates((prev) =>
-          prev.map((t) =>
-            t.id === templateId
-              ? { ...t, steps: t.steps.map((s, i) => (i === index ? newStep : s)) }
-              : t
-          )
-        );
-        logAction(`✏️ Updated step #${index + 1} in template ${templateId}`);
+      // ---------------------------
+      // Templates logic (🔥 NEW editable)
+      // ---------------------------
+      const addTemplate = () => {
+        setTemplates(prev => [...prev, {
+          id: Date.now(),
+          name: "New Template",
+          version: "0.1",
+          status: "draft",
+          steps: []
+        }]);
       };
 
-      const removeStep = (templateId, index) => {
-        setTemplates((prev) =>
-          prev.map((t) =>
-            t.id === templateId
-              ? { ...t, steps: t.steps.filter((_, i) => i !== index) }
-              : t
-          )
-        );
-        logAction(`❌ Removed step #${index + 1} from template ${templateId}`);
+      const addStep = (tid) => {
+        setTemplates(prev => prev.map(t =>
+          t.id === tid
+            ? { ...t, steps: [...t.steps, { id: Date.now(), name: "New Step", param: "", min: null, max: null, materials: [] }] }
+            : t
+        ));
       };
 
-      const addMaterial = (templateId, stepIndex) => {
-        setTemplates((prev) =>
-          prev.map((t) =>
-            t.id === templateId
-              ? {
-                  ...t,
-                  steps: t.steps.map((s, i) =>
-                    i === stepIndex
-                      ? { ...s, materials: [...s.materials, { id: "", status: "valid" }] }
-                      : s
-                  ),
-                }
-              : t
-          )
-        );
-        logAction(`📦 Added material to step #${stepIndex + 1} in template ${templateId}`);
+      const updateStep = (tid, sid, field, value) => {
+        setTemplates(prev => prev.map(t =>
+          t.id === tid
+            ? { ...t, steps: t.steps.map(s => s.id === sid ? { ...s, [field]: value } : s) }
+            : t
+        ));
       };
 
+      // ---------------------------
+      // Workflow logic (🔥 NEW)
+      // ---------------------------
+      const updateWorkflowStep = (sid, value) => {
+        setWorkflow(prev => prev.map(s =>
+          s.id === sid
+            ? {
+                ...s,
+                value,
+                status:
+                  s.type === "control"
+                    ? (value >= s.min && value <= s.max ? "ok" : "blocked")
+                    : "done"
+              }
+            : s
+        ));
+      };
+
+      // ---------------------------
+      // Render UI
+      // ---------------------------
       return (
-        <div className="max-w-7xl mx-auto p-6">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <img src="assets/logo.svg" className="h-12 w-12" />
-              <h1 className="text-3xl font-bold">🏭 Nobilis.Tech MES</h1>
-            </div>
-            <span className="text-green-600 font-medium">✅ Online</span>
-          </div>
+        <div className="p-6">
+          {/* Header with logo */}
+          <header className="flex items-center mb-6">
+            <img src="assets/logo.svg" alt="Logo" className="h-10 mr-3" />
+            <h1 className="text-3xl font-bold">Nobilis.Tech MES</h1>
+          </header>
 
           {/* Navigation */}
-          <div className="flex mb-6 border-b">
-            <NavButton tab="dashboard" activeTab={activeTab} setActiveTab={setActiveTab} icon="📊" label="Dashboard" />
-            <NavButton tab="batches" activeTab={activeTab} setActiveTab={setActiveTab} icon="🧪" label="Batches" />
-            <NavButton tab="templates" activeTab={activeTab} setActiveTab={setActiveTab} icon="📋" label="eBR Templates" />
-            <NavButton tab="workflow" activeTab={activeTab} setActiveTab={setActiveTab} icon="🔄" label="Workflow" />
-            <NavButton tab="audit" activeTab={activeTab} setActiveTab={setActiveTab} icon="📜" label="Audit Trail" />
-          </div>
+          <nav className="flex space-x-4 border-b pb-2 mb-6">
+            <button onClick={() => setActiveTab("dashboard")} className={activeTab === "dashboard" ? "font-bold" : ""}><Icons.Dashboard /> Dashboard</button>
+            <button onClick={() => setActiveTab("batches")} className={activeTab === "batches" ? "font-bold" : ""}><Icons.Batch /> Batches</button>
+            <button onClick={() => setActiveTab("templates")} className={activeTab === "templates" ? "font-bold" : ""}><Icons.Template /> eBR Templates</button>
+            <button onClick={() => setActiveTab("workflow")} className={activeTab === "workflow" ? "font-bold" : ""}><Icons.Workflow /> Workflow</button>
+          </nav>
 
           {/* Dashboard */}
           {activeTab === "dashboard" && (
-            <div className="bg-white p-6 rounded-lg shadow-sm border">
-              <h2 className="text-lg font-semibold">📊 Dashboard</h2>
-              <p className="text-sm text-gray-600 mt-2">Показывает KPI, активные партии и отклонения.</p>
+            <div>
+              <h2 className="text-xl font-semibold mb-4">📊 Production KPIs</h2>
+              <ul className="list-disc ml-6">
+                <li>Active batches: {batches.filter(b => b.status !== "completed").length}</li>
+                <li>Completed: {batches.filter(b => b.status === "completed").length}</li>
+                <li>Deviations: {batches.filter(b => b.status === "deviation").length}</li>
+                <li>Templates: {templates.length}</li>
+              </ul>
             </div>
           )}
 
           {/* Batches */}
           {activeTab === "batches" && (
-            <div className="bg-white p-6 rounded-lg shadow-sm border">
-              <h2 className="text-lg font-semibold">🧪 Batch Records</h2>
-              <p className="text-sm text-gray-600 mt-2">Список партий, статусы и прогресс выполнения.</p>
-            </div>
-          )}
-
-          {/* Templates */}
-          {activeTab === "templates" && (
-            <div className="space-y-6">
-              {templates.map((t) => (
-                <div key={t.id} className="bg-white p-6 rounded-lg shadow-sm border">
-                  <h3 className="text-lg font-semibold mb-4">{t.name}</h3>
-                  {t.steps.map((s, i) => (
-                    <StepRow
-                      key={i}
-                      step={s}
-                      onUpdate={(ns) => updateStep(t.id, i, ns)}
-                      onRemove={() => removeStep(t.id, i)}
-                      onAddMaterial={() => addMaterial(t.id, i)}
-                    />
-                  ))}
-                  <button
-                    onClick={() => addStep(t.id)}
-                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
-                  >
-                    ➕ Add Step
-                  </button>
+            <div>
+              <h2 className="text-xl font-semibold mb-4">🧪 Batch Records</h2>
+              {batches.map(b => (
+                <div key={b.id} className="border p-3 mb-3 rounded">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <strong>{b.id}</strong> — {b.product}
+                      {b.deviation && <span className="text-red-600 ml-2">⚠️ {b.deviation}</span>}
+                    </div>
+                    <span>Status: {b.status}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 h-2 my-2">
+                    <div className="bg-blue-600 h-2" style={{ width: `${b.progress}%` }}></div>
+                  </div>
+                  {b.status === "in_progress" && (
+                    <div className="flex space-x-2">
+                      <button className="bg-green-500 text-white px-3 py-1 rounded" onClick={() => completeStep(b.id)}>✅ Complete Step</button>
+                      <button className="bg-red-500 text-white px-3 py-1 rounded" onClick={() => reportDeviation(b.id)}>🚨 Report Deviation</button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           )}
 
-          {/* Workflow */}
-          {activeTab === "workflow" && (
-            <div className="space-y-6">
-              <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
-                <h3 className="font-semibold text-blue-800 mb-2">🎯 Workflow Goals</h3>
-                <ul className="list-disc list-inside text-sm text-blue-700 space-y-1">
-                  <li>Пошаговое выполнение процесса по MBR</li>
-                  <li>Фиксация и контроль данных в реальном времени</li>
-                  <li>Соответствие GMP, 21 CFR Part 11, Annex 11, GAMP5</li>
-                  <li>Электронные подписи, аудит-трейл, контроль отклонений</li>
-                </ul>
+          {/* Templates */}
+          {activeTab === "templates" && (
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">📋 eBR Templates</h2>
+                <button className="bg-green-600 text-white px-3 py-1 rounded" onClick={addTemplate}><Icons.Plus /> Add Template</button>
               </div>
-              <div className="bg-white p-6 rounded-lg shadow-sm border">
-                <h3 className="text-lg font-semibold mb-4">📖 User Stories</h3>
-                <p className="text-sm text-gray-600">WF-01…WF-06 (оператор, QA, мастер, аудитор).</p>
-              </div>
+              {templates.map(t => (
+                <div key={t.id} className="border p-3 mb-3 rounded">
+                  <div className="flex justify-between">
+                    <div>
+                      <strong>{t.name}</strong> (v{t.version}) — {t.status}
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <button className="bg-blue-600 text-white px-2 py-1 rounded" onClick={() => addStep(t.id)}>➕ Add Step</button>
+                  </div>
+                  {t.steps.length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      {t.steps.map(s => (
+                        <div key={s.id} className="border p-2 rounded bg-gray-50">
+                          <input
+                            className="border px-2 py-1 w-full mb-1"
+                            value={s.name}
+                            onChange={e => updateStep(t.id, s.id, "name", e.target.value)}
+                          />
+                          <input
+                            className="border px-2 py-1 w-full mb-1"
+                            placeholder="Parameter"
+                            value={s.param}
+                            onChange={e => updateStep(t.id, s.id, "param", e.target.value)}
+                          />
+                          <div className="flex space-x-2">
+                            <input className="border px-2 py-1 w-1/2" type="number" placeholder="Min" value={s.min || ""} onChange={e => updateStep(t.id, s.id, "min", e.target.value)} />
+                            <input className="border px-2 py-1 w-1/2" type="number" placeholder="Max" value={s.max || ""} onChange={e => updateStep(t.id, s.id, "max", e.target.value)} />
+                          </div>
+                          <input
+                            className="border px-2 py-1 w-full mt-1"
+                            placeholder="Materials"
+                            value={s.materials?.join(", ") || ""}
+                            onChange={e => updateStep(t.id, s.id, "materials", e.target.value.split(","))}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
 
-          {/* Audit Trail */}
-          {activeTab === "audit" && (
-            <div className="bg-white p-6 rounded-lg shadow-sm border">
-              <h2 className="text-lg font-semibold mb-4">📜 Audit Trail</h2>
-              {auditLog.length === 0 ? (
-                <p className="text-gray-500">No actions recorded yet.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {auditLog.map((log, i) => (
-                    <li key={i} className="text-sm">
-                      <span className="text-gray-500">{log.ts}</span> — {log.msg}
-                    </li>
-                  ))}
-                </ul>
-              )}
+          {/* Workflow (🔥 NEW) */}
+          {activeTab === "workflow" && (
+            <div>
+              <h2 className="text-xl font-semibold mb-4">🔄 Workflow Execution</h2>
+              {workflow.map(s => (
+                <div key={s.id} className="border p-3 mb-2 rounded">
+                  <div className="flex justify-between">
+                    <strong>{s.name}</strong>
+                    <span>Status: {s.status}</span>
+                  </div>
+                  {s.type === "instruction" && (
+                    <button className="bg-blue-500 text-white px-2 py-1 mt-2 rounded" onClick={() => updateWorkflowStep(s.id, "confirmed")}>Confirm</button>
+                  )}
+                  {s.type === "input" && (
+                    <input type="number" className="border px-2 py-1 mt-2 w-full"
+                      placeholder={s.param}
+                      onChange={e => updateWorkflowStep(s.id, parseFloat(e.target.value))}
+                    />
+                  )}
+                  {s.type === "control" && (
+                    <input type="number" className="border px-2 py-1 mt-2 w-full"
+                      placeholder={`${s.param} (${s.min}-${s.max})`}
+                      onChange={e => updateWorkflowStep(s.id, parseFloat(e.target.value))}
+                    />
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>
       );
-    };
+    }
 
-    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    // Render
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
   </script>
 </body>
 </html>
